@@ -76,6 +76,9 @@ class DebugRecord:
 
         if self.returncode != None:
             result += "#### cparser aborted with exit code %d\n\n" % self.returncode
+            if self.stderrdata:
+                result += "cparser produced the following data on stderr\n\n"
+                result += "\t%s\n\n" % self.stderrdata.replace('\n', '\n\t')
         elif self.timeout:
             result += "#### cparser timed out\n\n"
             stacktraces = map(lambda x: x.stacktrace_frames, self.debug_points)
@@ -88,10 +91,6 @@ class DebugRecord:
         result += "cparser was run with the following options:\n\n"
         result += "\tcparser %s\n\n" % ' '.join(self.args)
         result += '\n'.join(map(str, self.debug_points))
-
-        if self.stderrdata:
-            result += "cparser produced the following data on stderr\n\n"
-            result += "\t%s\n\n" % self.stderrdata.replace('\n', '\n\t')
 
         return result
 
