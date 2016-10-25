@@ -18,3 +18,5 @@ a.s
 *.vcg
 *.ir
 *.md
+bugreports/*
+!bugreports/.gitkeep
