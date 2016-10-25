@@ -327,7 +327,8 @@ def yield_process_events(debugger, process, n_stops = 0):
                     stop_idx += 1
                     if stop_idx >= n_stops:
                         done = True
-                    process.Continue()
+                    else:
+                        process.Continue()
                 elif state == lldb.eStateExited:
                     yield (state, event)
                     done = True
