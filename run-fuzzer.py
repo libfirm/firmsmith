@@ -27,7 +27,6 @@ REPORT_DIR = './bugreports'
 FIRMSMITH_BIN = os.path.abspath('./build/debug/firmsmith')
 CPARSER_BIN = os.path.abspath('./../cparser/build/debug/cparser')
 
-print (CPARSER_BIN)
 # Global vars
 
 optimizations = []
@@ -441,7 +440,6 @@ def debug_abort(debugger, args):
     """
     Returns DebugPoint instance
     """
-    print("/", end="")
     debug_point = DebugPoint()
     target = get_debugger_target(debugger)
     launch_info = get_cparser_launch_info(args)
@@ -457,7 +455,6 @@ def debug_abort(debugger, args):
         elif state == lldb.eStateStopped:
             debug_point.runtime += time.time()
             debug_point.stacktrace_frames = get_stacktrace_frames(process.threads[0])
-    print("\\", end="")
 
     return [ debug_point ]
 
@@ -507,7 +504,6 @@ def check_ir_graph(debugger, report):
             if opt == '-O3':
                 break
         except TimeoutError:
-            print("timeout")
             record.debug_points = debug_timeout(debugger, (args + [opt])[1:])
             record.timeout = True
             report.timeouts.append(record)
@@ -523,15 +519,9 @@ def check_ir_graph(debugger, report):
 def fuzz(n):
     debugger = get_debugger()
     for i in range(n):
-        print(".", end="")
         report = Report()
 
         args = get_firmsmith_random_args()
-        args = {
-            'blocksize': 5,
-            'seed': 8060059151757620672,
-            'graphsize': 47
-        }
         args.update({'strid': report.strid})
         report.args = args
 
