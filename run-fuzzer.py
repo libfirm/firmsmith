@@ -31,6 +31,7 @@ CPARSER_BIN = os.path.abspath('./../cparser/build/debug/cparser')
 
 optimizations = []
 now = None
+current_report = None
 
 # Models
 
@@ -466,6 +467,7 @@ def debug_timeout(debugger, args):
 
     debug_points = []
     start_time = time.time()
+    n_stops = 0
     for (state, event) in yield_process_events(debugger, process, n_stops=3):
         if state == lldb.eStateInvalid:
             raise Exception("invalid lldb state")
@@ -473,10 +475,18 @@ def debug_timeout(debugger, args):
             print(lldb_error)
             raise Exception("Exited noramlly")
         elif state == lldb.eStateStopped:
+            n_stops += 1
             debug_point = DebugPoint()
             debug_point.runtime = time.time() - start_time
             debug_point.stacktrace_frames = get_stacktrace_frames(process.threads[0])
             debug_points.append(debug_point)
+
+            if n_stops == 3:
+                ci = debugger.GetCommandInterpreter()
+                res = lldb.SBCommandReturnObject()
+                command = 'expr dump_all_ir_graphs("%s")' % \
+                    (current_report.strid + '-last_stop')
+                ci.HandleCommand(command, res)
     return debug_points
 
 
@@ -516,9 +526,11 @@ def check_ir_graph(debugger, report):
 
 
 def fuzz(n):
+    global current_report
     debugger = get_debugger()
     for i in range(n):
         report = Report()
+        current_report = report
 
         args = get_firmsmith_random_args()
         args.update({'strid': report.strid})
@@ -526,16 +538,21 @@ def fuzz(n):
 
         try:
             firmsmith_generate_ir_graph(args)
-
-            shutil.move(report.strid + '.ir', REPORT_DIR + '/' + report.strid + '.ir')
-            subprocess.call("bash -c 'mv *%s.vcg %s'" % (report.strid, REPORT_DIR), shell=True)
+            subprocess.call('bash -c "mv *%s.{vcg,ir} %s"' % (report.strid, REPORT_DIR), shell=True)
 
             check_ir_graph(debugger, report)
             if report.is_bug_report():
-                filename = REPORT_DIR + '/' + report.strid + '.md'
+                filename = REPORT_DIR + '/' + report.strid + '.txt'
                 with open(filename, 'w') as report_file:
                     report_file.write(str(report))
-                    print("Report was written to %s" % filename)
+                    print("Report was written to %s (%d timeouts, %d aborts, %d crashes)"  % \
+                        (filename, len(report.timeouts), len(report.aborts), len(report.crashes)))
+                if report.strid:
+                    subprocess.call("bash -c 'mv *%s*.{vcg} %s 2&> /dev/null'" % \
+                        (report.strid, REPORT_DIR), shell=True)
+            else:
+                subprocess.call('bash -c "rm %s/*%s.{vcg,ir}"' % (REPORT_DIR, report.strid), shell=True)
+
         except CalledProcessError, TimeoutError:
             print("Could not generate ir graph with arguments %s" % \
                   get_firmsmith_args_as_string(args))
