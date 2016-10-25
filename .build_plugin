@@ -1,0 +1,12 @@
+DIRS = "" adt driver wrappergen ;
+SOURCES = ;
+for d in $(DIRS) {
+	SOURCES += [ Wildcard $(PLUGIN_DIR)/$(d) : *.c *.h ] ;
+}
+
+Application cparser : $(SOURCES) ;
+IncludeDir cparser : libfirm/include libfirm/include/libfirm ;
+IncludeDir cparser : $(PLUGIN_DIR) ;
+CFlags cparser : -std=c99 ;
+LinkWith cparser : firm ;
+LFlags cparser : -lm ;
