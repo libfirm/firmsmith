@@ -33,6 +33,14 @@ optimizations = []
 now = None
 current_report = None
 
+# Params
+
+show_debug = False
+
+def print_debug(*args, **kwargs):
+    if show_debug:
+        print(*args, **kwargs)
+
 # Models
 
 class DebugPoint:
@@ -505,19 +513,24 @@ def check_ir_graph(debugger, report):
             process.kill()
             raise e
 
+    print_debug("_", end="")
+
     for opt in ['-O3'] + optimizations:
         record = DebugRecord()
         record.args = args[1:] + [opt]
         try:
+            print_debug(".", end="")
             set_timeout(5, lambda: run_cparser(args + [opt]))
             report.successes.append(record)
             if opt == '-O3':
                 break
         except TimeoutError:
+            print_debug('T', end='')
             record.debug_points = debug_timeout(debugger, (args + [opt])[1:])
             record.timeout = True
             report.timeouts.append(record)
         except CalledProcessError as e:
+            print_debug('A', end='')
             record.debug_points = debug_abort(debugger, (args + [opt])[1:])
             record.returncode = e.returncode
             record.stderrdata = e.stderrdata.strip()
