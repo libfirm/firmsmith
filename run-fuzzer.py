@@ -18,6 +18,8 @@ from StringIO import StringIO
 import signal
 import shutil
 import re
+import random
+import string
 
 from datetime import datetime
 
@@ -121,6 +123,28 @@ class Report:
     def is_bug_report(self):
         return len(self.records) != len(self.successes)
 
+
+    def get_identifier(self):
+        id_list = []
+        re_assertion = re.compile(
+            'Assertion failed: .* file (.*), line (\d*)',
+            re.MULTILINE
+        )
+
+        for record in self.timeouts:
+            id_list.append("t_" + '_'.join(record.args[2:]))
+
+        for record in self.aborts:
+            record_id = "a_" + '_'.join(record.args[2:])
+            match = re_assertion.search(record.stderrdata)
+            if match:
+                record_id += '_' + '_'.join(match.groups()).replace('/', '_')
+            id_list.append(record_id)
+
+        id_list.sort()
+        return '_'.join(id_list)
+
+
     def __str__(self):
         result = '# Report %s\n\n' % self.strid
 
@@ -210,7 +234,6 @@ def set_timeout(timeout, func):
         signal.signal(signal.SIGALRM, lambda *args: None)
     return False
 
-
 # LLDB helper functions
 
 def get_debugger():
@@ -240,9 +263,10 @@ def get_args_as_string(frame, showFuncName=True):
             type = type.GetPointeeType()
         type_name = type.GetName()
         if type_name.strip().endswith('ir_node'):
-            node_str = var.GetValue()
             node_nr = var.GetChildMemberWithName('node_nr')
-            node_str = ' [node_nr=%s]' % str(node_nr.GetValue())
+            node_type = var.GetChildMemberWithName('op').GetChildMemberWithName('name')
+            node_str = ' [node_nr=%s, node_opname=%s]' % \
+               (str(node_nr.GetValue()), str(node_type.GetSummary()))
 
 
         args.append("(%s)%s=%s%s" % (var.GetTypeName(),
@@ -414,7 +438,11 @@ def get_cparser_optimizations():
         if line.strip() == '':
             continue
         optimization = line.strip().split()[0]
-        if optimization.startswith('-f') and not optimization.startswith('-fno-') and optimization != '-fshape-blocks' and optimization != '-foccults':
+        if optimization.startswith('-f') and \
+            not optimization.startswith('-fno-') and \
+            optimization != '-fshape-blocks' and \
+            optimization != '-foccults' and \
+            optimization.find('-fdump') == -1:
             optimizations.append(optimization)
     return optimizations
 
@@ -521,15 +549,15 @@ def check_ir_graph(debugger, report):
 
     print_debug("_", end="")
 
-    for opt in ['-O3'] + optimizations:
+    for opt in optimizations:
+        opt = opt.replace('<size>', str(random.randint(1, 10)))
+        opt = opt.replace('<value>', str(random.randint(1, 10)))
         record = DebugRecord()
         record.args = args[1:] + [opt]
         try:
             print_debug(".", end="")
             set_timeout(5, lambda: run_cparser(args + [opt]))
             report.successes.append(record)
-            if opt == '-O3':
-                break
         except TimeoutError:
             print_debug('T', end='')
             record.debug_points = debug_timeout(debugger, (args + [opt])[1:])
@@ -567,9 +595,17 @@ def fuzz(n):
                     report_file.write(str(report))
                     print("Report was written to %s (%d timeouts, %d aborts, %d crashes)"  % \
                         (filename, len(report.timeouts), len(report.aborts), len(report.crashes)))
-                if report.strid:
-                    subprocess.call("bash -c 'mv *%s*.{vcg} %s 2&> /dev/null'" % \
-                        (report.strid, REPORT_DIR), shell=True)
+                command = """ bash -c '
+                    REPORT_DIR=%s;
+                    STRID=%s;
+                    CATEGORY=%s;
+                    mv $STRID-last_stop.vcg $REPORT_DIR &>/dev/null;
+                    cd $REPORT_DIR;
+                    zip $STRID.zip *$STRID*
+                    mkdir -p $CATEGORY;
+                    mv *$STRID* $CATEGORY
+                '""" % (REPORT_DIR, report.strid, report.get_identifier())
+                subprocess.call(command, shell=True)
             else:
                 subprocess.call('bash -c "rm %s/*%s.{vcg,ir}"' % (REPORT_DIR, report.strid), shell=True)
 
