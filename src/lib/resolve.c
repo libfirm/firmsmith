@@ -30,6 +30,7 @@ static ir_node *resolve_operator(cfb_t *cfb) {
     cfb_add_temporary(cfb, right_node, TEMPORARY_NUMBER);
     // Return operation node
     ir_node *op_node = bin_op_funcs[randomFuncIdx](cfb->irb, left_node, right_node);
+    assert(get_irn_n(op_node, -1) == cfb->irb);
     return op_node;
 }
 
@@ -85,13 +86,53 @@ static ir_node *resolve_phi(cfb_t *cfb) {
     }
 }
 
+static cfb_t *current_cfb = NULL;
+static temporary_t *current_temporary = NULL;
+
+static int is_dominated(ir_node* node, ir_node* dom) {
+    ir_node* dom_block = current_cfb->irb;
+    assert(node != dom);
+
+    for (int i = 0, n = get_irn_arity(node); i < n; ++i) {
+        ir_node *pred_node  = get_irn_n(node, i);
+        ir_node *pred_block = get_irn_n(pred_node, -1);
+
+        if (pred_node == dom) {
+            return 1;
+        }
+
+        if (pred_block != dom_block) {
+            continue;
+        }
+
+        if (is_dominated(pred_node, dom)) {
+            return 1;
+        }
+
+    }
+    return 0;
+}
+
 static ir_node *resolve_existing_temporary(cfb_t *cfb) {
+    ir_node *repl[100];
+    int repl_count = 0;
+
     cfb_for_each_temp(cfb, temporary) {
-        if (0 && temporary->resolved) {
-            return temporary->node;
+        if (
+             temporary->resolved &&
+             temporary->type == current_temporary->type &&
+             !is_dominated(temporary->node, current_temporary->node)
+        ) {
+            repl[repl_count++] = temporary->node;
         }
     }
-    return resolve_immediate_move(cfb);
+
+    if (repl_count > 0) {
+        int repl_index = rand() % repl_count;
+        return repl[repl_index];
+    } else {
+        return resolve_immediate_move(cfb);
+    }
 }
 
 static ir_node *resolve_postpone(cfb_t *cfb) {
@@ -120,8 +161,8 @@ double probabilites[6][2] = {
     { 5, 5 },   // Memory read
     { 5, 15 },  // Immediate move
     { 5, 20 },  // Phi function
-    { 0, 25 },  // Existing temporary
-    { 20, 10 }  // Postpone
+    { 10, 25 },  // Existing temporary
+    { 10, 10 }  // Postpone
 };
 
 ir_node* (*resolve_funcs[6])(cfb_t*) = {
@@ -129,7 +170,7 @@ ir_node* (*resolve_funcs[6])(cfb_t*) = {
     resolve_memory_read,
     resolve_immediate_move,
     resolve_phi,
-    resolve_immediate_move,//resolve_existing_temporary,
+    resolve_existing_temporary,
     resolve_postpone
 };
 
@@ -160,6 +201,7 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
         for (int i = 0; i < 6 && !resolved; ++i) {
             if (interpolation_prefix_sum[i] > random) {
                 //printf("%d : %f >? %f\n", i, interpolation_prefix_sum[i], random);
+                current_temporary = temporary;
                 new_node = resolve_funcs[i](cfb);
                 //printf("New node %ld\n", get_irn_node_nr(new_node));
                 resolved = 1;
@@ -196,10 +238,11 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
 }
 
 static void resolve_cfb_temporaries(cfb_t *cfb) {
+    current_cfb = cfb;
     assert(get_Block_n_cfgpreds(cfb->irb) == cfb->n_predecessors);
     if (
         cfb->visited >= get_visit_counter() &&
-        cfb->temporaries.next == &(cfb->temporaries)
+        cfb->n_temporaries == 0
     ) {
         return;
     }
@@ -222,7 +265,7 @@ static void resolve_cfb_temporaries(cfb_t *cfb) {
     cfb_for_each_temp(cfb, temporary) {
         if (!temporary->resolved) {
             resolve_temp(cfb, temporary);
-            _list_del(&temporary->head);
+            //_list_del(&temporary->head);
             cfb->n_temporaries -= 1;
         }
     }
@@ -233,7 +276,7 @@ static void resolve_cfb_temporaries(cfb_t *cfb) {
     }
 
     resolve_cfb_temporaries(cfb);
-    assert(cfb->temporaries.next == cfb->temporaries.prev && cfb->n_temporaries == 0);
+    assert(cfb->n_temporaries == 0);
     ;//printf("end resolve irb %ld\n", get_irn_node_nr(cfb->irb));
 
 }
