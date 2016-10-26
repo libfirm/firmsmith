@@ -142,7 +142,7 @@ class Report:
             id_list.append(record_id)
 
         id_list.sort()
-        return '_'.join(id_list)
+        return '_'.join(id_list[3])
 
 
     def __str__(self):
