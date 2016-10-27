@@ -101,6 +101,10 @@ static int is_dominated(ir_node* node, ir_node* dom) {
             return 1;
         }
 
+        if (get_irn_opcode(pred_node) == iro_Phi) {
+            continue;
+        }
+
         if (pred_block != dom_block) {
             continue;
         }
