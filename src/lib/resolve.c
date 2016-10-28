@@ -82,7 +82,7 @@ static ir_node *resolve_phi(cfb_t *cfb) {
 
         return new_r_Phi(cfb->irb, cfb->n_predecessors, ins, mode_Is);
     } else {
-        return resolve_immediate_move(cfb);
+        return NULL;
     }
 }
 
@@ -135,7 +135,7 @@ static ir_node *resolve_existing_temporary(cfb_t *cfb) {
         int repl_index = rand() % repl_count;
         return repl[repl_index];
     } else {
-        return resolve_immediate_move(cfb);
+        return NULL;
     }
 }
 
@@ -187,7 +187,7 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
     */
     set_current_ir_graph(get_irn_irg(cfb->irb));
     set_cur_block(cfb->irb);
-    ir_node *new_node;
+    ir_node *new_node = NULL;
 
     switch (temporary->type) {
     case TEMPORARY_BOOLEAN: {
@@ -195,24 +195,25 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
         break;
     }
     case TEMPORARY_NUMBER: {
-        double factor = ((double)cfb->n_nodes) / ((double)blocksize);
-        factor = factor > 1.0 ? 1.0 : factor; 
-        get_interpolation_prefix_sum_table(6, probabilites, interpolation_prefix_sum, factor);
-        double random = get_random_percentage();
-        
-        int resolved = 0;
-        //for (int i = 0; i < 6; ++i ) printf("%f\t", interpolation_prefix_sum[i]);
-        for (int i = 0; i < 6 && !resolved; ++i) {
-            if (interpolation_prefix_sum[i] > random) {
-                //printf("%d : %f >? %f\n", i, interpolation_prefix_sum[i], random);
-                current_temporary = temporary;
-                new_node = resolve_funcs[i](cfb);
-                //printf("New node %ld\n", get_irn_node_nr(new_node));
-                resolved = 1;
+        while (new_node == NULL) {
+            double factor = ((double)cfb->n_nodes) / ((double)blocksize);
+            factor = factor > 1.0 ? 1.0 : factor; 
+            get_interpolation_prefix_sum_table(6, probabilites, interpolation_prefix_sum, factor);
+            double random = get_random_percentage();
+            
+            int resolved = 0;
+            //for (int i = 0; i < 6; ++i ) printf("%f\t", interpolation_prefix_sum[i]);
+            for (int i = 0; i < 6 && !resolved; ++i) {
+                if (interpolation_prefix_sum[i] > random) {
+                    //printf("%d : %f >? %f\n", i, interpolation_prefix_sum[i], random);
+                    current_temporary = temporary;
+                    new_node = resolve_funcs[i](cfb);
+                    //printf("New node %ld\n", get_irn_node_nr(new_node));
+                    resolved = 1;
+                }
             }
+            assert(resolved);
         }
-        assert(resolved);
-
         break;
     }
     default:

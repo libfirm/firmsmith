@@ -53,7 +53,8 @@ typedef struct cfb_t {
 
 typedef enum temp_type {
     TEMPORARY_BOOLEAN,
-    TEMPORARY_NUMBER
+    TEMPORARY_NUMBER,
+    TEMPORARY_POINTER
 } temp_type;
 
 typedef struct temporary_t {
