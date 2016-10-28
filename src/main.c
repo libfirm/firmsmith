@@ -31,7 +31,7 @@ static int action_run(const char *argv0) {
 	func_t* func = new_random_func();
 	// Construct corresponding ir node tree
 	convert_func(func);
-	cfg_print(func->cfg);
+	//cfg_print(func->cfg);
 	resolve_cfg_temporaries(func->cfg);
 	finalize_convert(func->cfg);
 

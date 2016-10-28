@@ -164,17 +164,17 @@ static int print_indent = 0;
 
 static void cfb_print_pre(cfb_t *block) {
     for (int i = 0; i < print_indent; ++i) {
-        ;//printf("._");
+        printf(" ");
     }
-    ;//printf("%d [%d P; %d S]\n", block->index, block->n_predecessors, block->n_successors);
+    printf("%d [%d P; %d S]\n", block->index, block->n_predecessors, block->n_successors);
     print_indent += 1;
 }
 
 static void cfb_print_visited(cfb_t *block) {
     for (int i = 0; i < print_indent; ++i) {
-        ;//printf("._");
+        printf("._");
     }
-    ;//printf("%d [%d P; %d S] [loop]\n", block->index, block->n_predecessors, block->n_successors);
+    printf("%d [%d P; %d S] [loop]\n", block->index, block->n_predecessors, block->n_successors);
 }
 
 static void cfb_print_post(cfb_t *block) {
@@ -184,7 +184,7 @@ static void cfb_print_post(cfb_t *block) {
 
 void cfb_print(cfb_t *cfb) {
     cfb_walk_successors(cfb, cfb_print_pre, cfb_print_post, cfb_print_visited);
-    ;//printf("\n");
+    printf("\n");
 }
 
 // Walk predecessor

@@ -49,12 +49,12 @@ void cfg_expand(cfg_t *cfg) {
         cfb_t *random_block = cfg_random_block(cfg);
         /* Choose random tranformation */
         int trans_nr = rand() % 4;
+        /*
         cfg_print(cfg);
-        /*cfg_print(cfg);
         for (int i = 0; i < cfg->n_blocks; ++i) 
             healthy_predecessors(cfg->blocks[i]);
-            */
-                cfg_print(cfg);
+        cfg_print(cfg);
+        */
 
         switch (trans_nr) {
         /* Transformation: T1 */    
