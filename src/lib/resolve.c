@@ -45,28 +45,42 @@ static ir_node *resolve_immediate_move(cfb_t *cfb) {
     return random_const;
 }
 
-// TODO: Use actualy memory read
-static ir_node *resolve_memory_read(cfb_t *cfb) {
+static ir_node *resolve_alloc(cfb_t *cfb) {
     if (is_dominated(current_temporary->node, cfb->mem)) {
-        printf("Can not resolve memory read, as cfb->mem dominates\n");
+        //printf("Can not resolve memory read, as cfb->mem dominates\n");
         return NULL;
     }
 
-    ir_node *mem = cfb->mem;
-    ir_node *size = new_Const(new_tarval_from_long(rand(), mode_Iu));
-    ir_node *alloc = new_r_Alloc(cfb->irb, mem, size, 8);
+
+    ir_node *mem_dummy = new_Dummy(mode_M);
+    ir_node *size = new_Const(new_tarval_from_long(10, mode_Iu));
+    ir_node *alloc = new_r_Alloc(cfb->irb, mem_dummy, size, 8);
 	ir_node *alloc_ptr = new_Proj(alloc, mode_P, pn_Alloc_res);
 	ir_node *alloc_mem = new_Proj(alloc, mode_M, pn_Alloc_M);
+    exchange(cfb->mem, alloc_mem);
+    cfb->mem = mem_dummy;
+
+    return alloc_ptr;
+}
+
+// TODO: Use actualy memory read
+static ir_node *resolve_memory_read(cfb_t *cfb) {
+    if (is_dominated(current_temporary->node, cfb->mem)) {
+        //printf("Can not resolve memory read, as cfb->mem dominates\n");
+        return NULL;
+    }
 
     ir_type *int_type = new_type_primitive(mode_Is);
-    //ir_node *dummy_ptr = new_Dummy(mode_P);
-    //cfb_add_temporary(cfb, dummy_ptr, TEMPORARY_POINTER);    
-    ir_node *load = new_r_Load(cfb->irb, alloc_mem, alloc_ptr, mode_Is, int_type, cons_none);
+    ir_node *dummy_ptr = new_Dummy(mode_P);
+    cfb_add_temporary(cfb, dummy_ptr, TEMPORARY_POINTER);    
+
+    ir_node *mem_dummy = new_Dummy(mode_M);
+    ir_node *load = new_r_Load(cfb->irb, mem_dummy, dummy_ptr, mode_Is, int_type, cons_none);
 	ir_node *load_result = new_Proj(load, mode_Is, pn_Load_res);
 	ir_node *load_mem    = new_Proj(load, mode_M, pn_Load_M);
 
     exchange(cfb->mem, load_mem);
-    cfb->mem = load_mem;
+    cfb->mem = mem_dummy;
 	return load_result;
 }
 
@@ -87,9 +101,11 @@ static ir_node *get_cf_op(ir_node *n)
 }
 
 static ir_node *resolve_phi(cfb_t *cfb) {
-    if (cfb->n_predecessors == 1) {
-        return resolve_immediate_move(cfb);
-    } else if (cfb->n_predecessors > 0) {
+    //printf("resolve phi\n");
+    ir_mode *mode = get_irn_mode(current_temporary->node);
+    assert((mode == mode_P) ^ (current_temporary->type == TEMPORARY_NUMBER));
+    assert((mode == mode_Is) ^ (current_temporary->type == TEMPORARY_POINTER));
+    if (cfb->n_predecessors > 0) {
     
         ir_node *ins[cfb->n_predecessors];
         int pred_count = 0;
@@ -107,18 +123,29 @@ static ir_node *resolve_phi(cfb_t *cfb) {
             }
             assert(pred != NULL);
 
-            ins[pred_count] = new_Dummy(mode_Is);
-            cfb_add_temporary(pred, ins[pred_count], TEMPORARY_NUMBER);
+            ins[pred_count] = new_Dummy(mode);
+            cfb_add_temporary(pred, ins[pred_count], current_temporary->type);
             pred_count++;
         }
 
-        return new_r_Phi(cfb->irb, cfb->n_predecessors, ins, mode_Is);
+        ir_node *new_node = new_r_Phi(cfb->irb, cfb->n_predecessors, ins, mode);
+        printf(
+            "Resolve phi %d with type %s\n",
+            get_irn_node_nr(new_node),
+            current_temporary->type == TEMPORARY_NUMBER ? "number" : "pointer"
+        );
+        return new_node;
     } else {
         return NULL;
     }
 }
 
 static int is_dominated_core(ir_node* node, ir_node* dom) {
+    printf(
+        "is_dominated_core(%s(%d), %s(%d))\n", 
+        get_irn_opname(node), get_irn_node_nr(node),
+        get_irn_opname(dom), get_irn_node_nr(dom)
+    );
     if (irn_visited(node)) {
         return 0;
     } else {
@@ -141,7 +168,7 @@ static int is_dominated_core(ir_node* node, ir_node* dom) {
         }
 
         if (pred_block != dom_block) {
-            continue;
+            //continue;
         }
 
         if (is_dominated_core(pred_node, dom)) {
@@ -154,7 +181,9 @@ static int is_dominated_core(ir_node* node, ir_node* dom) {
 
 static int is_dominated(ir_node* node, ir_node* dom) {
     inc_irg_visited(get_irn_irg(node));
-    return is_dominated_core(node, dom);
+    int res =  is_dominated_core(node, dom);
+    printf("\n");
+    return res;
 }
 
 static ir_node *resolve_existing_temporary(cfb_t *cfb) {
@@ -180,7 +209,7 @@ static ir_node *resolve_existing_temporary(cfb_t *cfb) {
 }
 
 static ir_node *resolve_postpone(cfb_t *cfb) {
-    return resolve_immediate_move(cfb);
+    return NULL;
 }
 
 static ir_node * resolve_cmp(cfb_t *cfb) {
@@ -221,6 +250,8 @@ ir_node* (*resolve_funcs[6])(cfb_t*) = {
 double interpolation_prefix_sum[6];
 
 static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
+                    current_temporary = temporary;
+
     /*printf("Resolve temp %s %ld in block %ld\n",
         get_irn_opname(temporary->node), get_irn_node_nr(temporary->node), get_irn_node_nr(temporary->node)
     );
@@ -229,17 +260,24 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
     set_cur_block(cfb->irb);
     ir_node *new_node = NULL;
 
-    switch (temporary->type) {
-    case TEMPORARY_POINTER: {
-        new_node = resolve_pointer(cfb);
-        break;
-    }
-    case TEMPORARY_BOOLEAN: {
-        new_node = resolve_cmp(cfb);
-        break;
-    }
-    case TEMPORARY_NUMBER: {
-        while (new_node == NULL) {
+    while (new_node == NULL) {
+        switch (temporary->type) {
+        case TEMPORARY_POINTER: {
+            int choice = rand() % 2;
+            if (choice == 0) {
+                new_node = resolve_alloc(cfb);
+            } else if (choice == 1) {
+                new_node = resolve_phi(cfb);
+            } else {
+                new_node = resolve_existing_temporary(cfb);
+            }
+            break;
+        }
+        case TEMPORARY_BOOLEAN: {
+            new_node = resolve_cmp(cfb);
+            break;
+        }
+        case TEMPORARY_NUMBER: {
             double factor = ((double)cfb->n_nodes) / ((double)blocksize);
             factor = factor > 1.0 ? 1.0 : factor; 
             get_interpolation_prefix_sum_table(6, probabilites, interpolation_prefix_sum, factor);
@@ -250,18 +288,17 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
             for (int i = 0; i < 6 && !resolved; ++i) {
                 if (interpolation_prefix_sum[i] > random) {
                     //printf("%d : %f >? %f\n", i, interpolation_prefix_sum[i], random);
-                    current_temporary = temporary;
                     new_node = resolve_funcs[i](cfb);
                     //printf("New node %ld\n", get_irn_node_nr(new_node));
                     resolved = 1;
                 }
             }
             assert(resolved);
+            break;
         }
-        break;
-    }
-    default:
-        assert(0 && "TEMPORARY kind not handled");
+        default:
+            assert(0 && "TEMPORARY kind not handled");
+        }
     }
 
     assert(get_irn_opcode(new_node) != iro_Dummy);
@@ -311,11 +348,22 @@ static void resolve_cfb_temporaries(cfb_t *cfb) {
     
     set_cur_block(cfb->irb);
 
+resolve:
+    cfb_for_each_temp(cfb, temporary) {
+        if (!temporary->resolved && temporary->type == TEMPORARY_POINTER) {
+            resolve_temp(cfb, temporary);
+            //_list_del(&temporary->head);
+            cfb->n_temporaries -= 1;
+            goto resolve;
+        }
+    }
+
     cfb_for_each_temp(cfb, temporary) {
         if (!temporary->resolved) {
             resolve_temp(cfb, temporary);
             //_list_del(&temporary->head);
             cfb->n_temporaries -= 1;
+            goto resolve;
         }
     }
 
