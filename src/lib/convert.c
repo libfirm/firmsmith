@@ -77,6 +77,7 @@ static void convert_cfb(cfb_t *cfb) {
 static void mature_cfb(cfb_t *cfb) {
     ;//printf("mature cfb with index %d has node nr %ld\n", cfb->index, get_irn_node_nr(cfb->irb));
     mature_immBlock(cfb->irb);
+    cfb->mem = new_Dummy(mode_M);
 }
 
 static void convert_cfg(cfg_t *cfg) {

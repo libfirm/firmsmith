@@ -42,6 +42,7 @@ typedef struct cfb_t {
     int loop;
     int n_nodes;
     ir_node *irb;                          /**< ir_node block for construction */
+    ir_node *mem;
     int n_predecessors;
     int n_successors;
     int n_temporaries;

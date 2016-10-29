@@ -33,10 +33,10 @@ static int action_run(const char *argv0) {
 	convert_func(func);
 	//cfg_print(func->cfg);
 	resolve_cfg_temporaries(func->cfg);
+	resolve_mem_graph(func->cfg);
 	finalize_convert(func->cfg);
 
 	irg_assert_verify(get_current_ir_graph());
-
 	// Dump ir file
 	char ir_file_name[256];
 	snprintf(ir_file_name, sizeof ir_file_name, "%s.ir", strid);

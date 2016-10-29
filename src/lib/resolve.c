@@ -10,6 +10,11 @@
 
 int blocksize = 20;
 
+static cfb_t *current_cfb = NULL;
+static temporary_t *current_temporary = NULL;
+
+static int is_dominated(ir_node* node, ir_node* dom);
+
 void set_blocksize(int x) {
     blocksize = x;
 }
@@ -42,7 +47,34 @@ static ir_node *resolve_immediate_move(cfb_t *cfb) {
 
 // TODO: Use actualy memory read
 static ir_node *resolve_memory_read(cfb_t *cfb) {
-    return resolve_immediate_move(cfb);
+    if (is_dominated(current_temporary->node, cfb->mem)) {
+        printf("Can not resolve memory read, as cfb->mem dominates\n");
+        return NULL;
+    }
+
+    ir_node *mem = cfb->mem;
+    ir_node *size = new_Const(new_tarval_from_long(rand(), mode_Iu));
+    ir_node *alloc = new_r_Alloc(cfb->irb, mem, size, 8);
+	ir_node *alloc_ptr = new_Proj(alloc, mode_P, pn_Alloc_res);
+	ir_node *alloc_mem = new_Proj(alloc, mode_M, pn_Alloc_M);
+
+    ir_type *int_type = new_type_primitive(mode_Is);
+    //ir_node *dummy_ptr = new_Dummy(mode_P);
+    //cfb_add_temporary(cfb, dummy_ptr, TEMPORARY_POINTER);    
+    ir_node *load = new_r_Load(cfb->irb, alloc_mem, alloc_ptr, mode_Is, int_type, cons_none);
+	ir_node *load_result = new_Proj(load, mode_Is, pn_Load_res);
+	ir_node *load_mem    = new_Proj(load, mode_M, pn_Load_M);
+
+    exchange(cfb->mem, load_mem);
+    cfb->mem = load_mem;
+	return load_result;
+}
+
+static ir_node *resolve_pointer(cfb_t *cfb) {
+    ir_node *frame = get_irg_frame(get_irn_irg(cfb->irb));
+    return frame;
+    //ir_node *conv = new_r_Conv(cfb->irb, frame, mode_Is);
+    //return conv;
 }
 
 static ir_node *get_cf_op(ir_node *n)
@@ -86,10 +118,13 @@ static ir_node *resolve_phi(cfb_t *cfb) {
     }
 }
 
-static cfb_t *current_cfb = NULL;
-static temporary_t *current_temporary = NULL;
+static int is_dominated_core(ir_node* node, ir_node* dom) {
+    if (irn_visited(node)) {
+        return 0;
+    } else {
+        mark_irn_visited(node);
+    }
 
-static int is_dominated(ir_node* node, ir_node* dom) {
     ir_node* dom_block = current_cfb->irb;
     assert(node != dom);
 
@@ -109,12 +144,17 @@ static int is_dominated(ir_node* node, ir_node* dom) {
             continue;
         }
 
-        if (is_dominated(pred_node, dom)) {
+        if (is_dominated_core(pred_node, dom)) {
             return 1;
         }
 
     }
     return 0;
+}
+
+static int is_dominated(ir_node* node, ir_node* dom) {
+    inc_irg_visited(get_irn_irg(node));
+    return is_dominated_core(node, dom);
 }
 
 static ir_node *resolve_existing_temporary(cfb_t *cfb) {
@@ -190,6 +230,10 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
     ir_node *new_node = NULL;
 
     switch (temporary->type) {
+    case TEMPORARY_POINTER: {
+        new_node = resolve_pointer(cfb);
+        break;
+    }
     case TEMPORARY_BOOLEAN: {
         new_node = resolve_cmp(cfb);
         break;
@@ -293,6 +337,23 @@ void resolve_cfg_temporaries(cfg_t *cfg) {
         if (cfb->n_successors == 0) {
             inc_visit_counter();
             resolve_cfb_temporaries(cfb);
+        }
+    }
+}
+
+
+static void resolve_mem_graph_walker_post(cfb_t *cfb) {
+    set_cur_block(cfb->irb);
+    ir_node *store = get_store();
+    exchange(cfb->mem, store);
+}
+
+void resolve_mem_graph(cfg_t *cfg) {
+    //edges_activate(get_current_ir_graph());
+    for (int i = 0; i < cfg->n_blocks; ++i) {
+        cfb_t *cfb = cfg->blocks[i];
+        if (cfb->n_successors == 0) {
+            cfb_walk_predecessors(cfb, NULL, resolve_mem_graph_walker_post, NULL);
         }
     }
 }
