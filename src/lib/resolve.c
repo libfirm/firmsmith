@@ -70,11 +70,11 @@ static ir_node *resolve_memory_read(cfb_t *cfb) {
         return NULL;
     }
 
-    ir_type *int_type = new_type_primitive(mode_Is);
     ir_node *dummy_ptr = new_Dummy(mode_P);
     cfb_add_temporary(cfb, dummy_ptr, TEMPORARY_POINTER);    
 
     ir_node *mem_dummy = new_Dummy(mode_M);
+    ir_type *int_type = new_type_primitive(mode_Is);
     ir_node *load = new_r_Load(cfb->irb, mem_dummy, dummy_ptr, mode_Is, int_type, cons_none);
 	ir_node *load_result = new_Proj(load, mode_Is, pn_Load_res);
 	ir_node *load_mem    = new_Proj(load, mode_M, pn_Load_M);
@@ -82,6 +82,24 @@ static ir_node *resolve_memory_read(cfb_t *cfb) {
     exchange(cfb->mem, load_mem);
     cfb->mem = mem_dummy;
 	return load_result;
+}
+
+static void seed_store(cfb_t *cfb, ir_node *node) {
+    if (is_dominated(node, cfb->mem)) {
+        //printf("Can not resolve memory read, as cfb->mem dominates\n");
+        return;
+    }
+
+    ir_node *dummy_ptr = new_Dummy(mode_P);
+    cfb_add_temporary(cfb, dummy_ptr, TEMPORARY_POINTER);
+
+    ir_node *mem_dummy = new_Dummy(mode_M);
+    ir_type *int_type = new_type_primitive(mode_Is);
+    ir_node *store = new_r_Store(cfb->irb, mem_dummy, dummy_ptr, node, int_type, cons_none);
+	ir_node *store_mem = new_Proj(store, mode_M, pn_Store_M);
+    exchange(cfb->mem, store_mem);
+    cfb->mem = mem_dummy;
+
 }
 
 static ir_node *resolve_pointer(cfb_t *cfb) {
@@ -129,8 +147,8 @@ static ir_node *resolve_phi(cfb_t *cfb) {
         }
 
         ir_node *new_node = new_r_Phi(cfb->irb, cfb->n_predecessors, ins, mode);
-        printf(
-            "Resolve phi %d with type %s\n",
+        if (0) printf(
+            "Resolve phi %ld with type %s\n",
             get_irn_node_nr(new_node),
             current_temporary->type == TEMPORARY_NUMBER ? "number" : "pointer"
         );
@@ -141,8 +159,8 @@ static ir_node *resolve_phi(cfb_t *cfb) {
 }
 
 static int is_dominated_core(ir_node* node, ir_node* dom) {
-    printf(
-        "is_dominated_core(%s(%d), %s(%d))\n", 
+    if (0) printf(
+        "is_dominated_core(%s(%ld), %s(%ld))\n", 
         get_irn_opname(node), get_irn_node_nr(node),
         get_irn_opname(dom), get_irn_node_nr(dom)
     );
@@ -182,7 +200,7 @@ static int is_dominated_core(ir_node* node, ir_node* dom) {
 static int is_dominated(ir_node* node, ir_node* dom) {
     inc_irg_visited(get_irn_irg(node));
     int res =  is_dominated_core(node, dom);
-    printf("\n");
+    if (0) printf("\n");
     return res;
 }
 
@@ -209,6 +227,7 @@ static ir_node *resolve_existing_temporary(cfb_t *cfb) {
 }
 
 static ir_node *resolve_postpone(cfb_t *cfb) {
+    (void)cfb;
     return NULL;
 }
 
@@ -320,6 +339,10 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
     stats_register_op(get_irn_opcode(new_node));
 
     temporary->resolved = 1;
+
+    if (temporary->type == TEMPORARY_NUMBER && rand() % 8 == 1) {
+        seed_store(cfb, new_node);
+    }
     //printf("Removing dummy\n");
 }
 
@@ -390,10 +413,39 @@ void resolve_cfg_temporaries(cfg_t *cfg) {
 }
 
 
+static void resolve_mem_graph_walker_pre(cfb_t *cfb) {
+    set_cur_block(cfb->irb);
+    printf("last_mem %s(%ld)\n", get_irn_opname(cfb->last_mem), get_irn_node_nr(cfb->last_mem));
+    set_store(cfb->last_mem);
+}
+
+static struct ir_node* skip_id(ir_node *n) {
+    if (get_irn_opcode(n) == iro_Id) {
+        return skip_id(get_irn_n(n, 0));
+    } else {
+        return n;
+    }
+}
+
 static void resolve_mem_graph_walker_post(cfb_t *cfb) {
+    printf("Visiting cfb %s(%ld)\n",
+        get_irn_opname(cfb->irb),
+        get_irn_node_nr(cfb->irb)
+    );
+    if (cfb->last_mem == NULL) return;
     set_cur_block(cfb->irb);
     ir_node *store = get_store();
+    printf("In %s(%ld):\n\tlast_mem = %s(%ld)\n\t     mem = %s(%ld)\n",
+        get_irn_opname(get_irn_n(cfb->last_mem, -1)),
+        get_irn_node_nr(get_irn_n(cfb->last_mem, -1)),
+        get_irn_opname(skip_id(cfb->last_mem)),
+        get_irn_node_nr(skip_id(cfb->last_mem)),
+        get_irn_opname(skip_id(cfb->mem)),
+        get_irn_node_nr(skip_id(cfb->mem))
+    );
     exchange(cfb->mem, store);
+    set_store(cfb->last_mem);
+    cfb->last_mem = NULL;
 }
 
 void resolve_mem_graph(cfg_t *cfg) {

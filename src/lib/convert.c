@@ -17,11 +17,11 @@ static void add_cfb_pred_jmp(cfb_t *cfb, ir_node* jmp) {
 }
 
 static void convert_cfb(cfb_t *cfb) {
-    ;//printf("Convert Visiting cfb %d\n", cfb->index);
     if (cfb->visited >= get_visit_counter()) {
         return;
     }
     cfb->visited = get_visit_counter();
+    cfb->mem = cfb->last_mem = new_Dummy(mode_M);
 
     assert(cfb->n_successors >= 0 && cfb->n_successors <= 2);
     set_cur_block(cfb->irb);
@@ -63,8 +63,7 @@ static void convert_cfb(cfb_t *cfb) {
         cfb_add_temporary(cfb, dummy, TEMPORARY_NUMBER);
 
         ir_node *results[] = { dummy };
-        ir_node *store = get_store();
-        ir_node *res = new_Return(store, 1, results);
+        ir_node *res = new_Return(cfb->mem, 1, results);
 
         ir_graph *irg = get_current_ir_graph();
         ir_node *end_block = get_irg_end_block(irg);
@@ -77,7 +76,6 @@ static void convert_cfb(cfb_t *cfb) {
 static void mature_cfb(cfb_t *cfb) {
     ;//printf("mature cfb with index %d has node nr %ld\n", cfb->index, get_irn_node_nr(cfb->irb));
     mature_immBlock(cfb->irb);
-    cfb->mem = new_Dummy(mode_M);
 }
 
 static void convert_cfg(cfg_t *cfg) {
