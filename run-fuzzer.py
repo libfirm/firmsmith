@@ -37,7 +37,7 @@ current_report = None
 
 # Params
 
-show_debug = False
+show_debug = True
 
 def print_debug(*args, **kwargs):
     if show_debug:
@@ -121,7 +121,7 @@ class Report:
         self.crashes = []
 
     def is_bug_report(self):
-        return len(self.records) != len(self.successes)
+        return len(self.timeouts) > 0 or len(self.aborts) > 0
 
 
     def get_identifier(self):
@@ -132,17 +132,17 @@ class Report:
         )
 
         for record in self.timeouts:
-            id_list.append("t_" + '_'.join(record.args[2:]))
+            id_list.append("t_" + '_'.join(record.args[3:]))
 
         for record in self.aborts:
-            record_id = "a_" + '_'.join(record.args[2:])
+            record_id = "a_" # "a_" + '_'.join(record.args[3:])
             match = re_assertion.search(record.stderrdata)
             if match:
-                record_id += '_' + '_'.join(match.groups()).replace('/', '_')
+                record_id += '_'.join(match.groups()).replace('/', '_')
             id_list.append(record_id)
 
         id_list.sort()
-        return '_'.join(id_list[:3])
+        return '_'.join(list(set(id_list[3:])))
 
 
     def __str__(self):
@@ -431,7 +431,7 @@ def firmsmith_generate_ir_graph(args):
 # Cparser
 
 def get_cparser_optimizations():
-    optimizations = []
+    optimizations = ['-O3', '-Os', '-Og']
     output = subprocess.check_output([CPARSER_BIN, '--help-optimization'])
     lines = output.split('\n')
     for line in lines:
@@ -442,6 +442,7 @@ def get_cparser_optimizations():
             not optimization.startswith('-fno-') and \
             optimization != '-fshape-blocks' and \
             optimization != '-foccults' and \
+            optimization.find('-fverify') == -1 and \
             optimization.find('-fdump') == -1:
             optimizations.append(optimization)
     return optimizations
@@ -479,6 +480,9 @@ def get_common_stacktrace(stacktraces):
 
 # LLDB Debugging
 
+class NoCrashException(Exception):
+    pass
+
 def debug_abort(debugger, args):
     """
     Returns DebugPoint instance
@@ -490,14 +494,18 @@ def debug_abort(debugger, args):
     process = target.Launch(launch_info, lldb_error)
 
     debug_point.runtime = -time.time()
+    stopped = False
     for (state, event) in yield_process_events(debugger, process, n_stops=0):
         if state == lldb.eStateInvalid:
             raise Exception("invalid lldb state")
         elif state == lldb.eStateExited:
-            print(Exception("did not crash"))
+            debug_point.runtime += time.time()
+            debug_point.stacktrace_frames = ['DID NOT CRASH IN DEBUGGER']
+            #raise NoCrashException("did not crash")
         elif state == lldb.eStateStopped:
             debug_point.runtime += time.time()
             debug_point.stacktrace_frames = get_stacktrace_frames(process.threads[0])
+            stopped = True
 
     return [ debug_point ]
 
@@ -534,7 +542,7 @@ def debug_timeout(debugger, args):
 
 
 def check_ir_graph(debugger, report):
-    args = [CPARSER_BIN, '%s/%s.ir' % (REPORT_DIR, report.strid), '-O0']
+    args = [CPARSER_BIN, '%s/%s.ir' % (REPORT_DIR, report.strid), '-O0', '-m32']
 
     devnull = open(os.devnull, 'w')
     def run_cparser(args):
@@ -549,28 +557,61 @@ def check_ir_graph(debugger, report):
 
     print_debug("_", end="")
 
-    for opt in optimizations:
-        opt = opt.replace('<size>', str(random.randint(1, 10)))
-        opt = opt.replace('<value>', str(random.randint(1, 10)))
+    def check_opts(opts):
         record = DebugRecord()
-        record.args = args[1:] + [opt]
+        record.args = args[1:] + opts
         try:
             print_debug(".", end="")
-            set_timeout(5, lambda: run_cparser(args + [opt]))
+            set_timeout(5, lambda: run_cparser(args + opts))
             report.successes.append(record)
+            return True
         except TimeoutError:
             print_debug('T', end='')
             record.debug_points = debug_timeout(debugger, (args + [opt])[1:])
             record.timeout = True
             report.timeouts.append(record)
         except CalledProcessError as e:
-            print_debug('A', end='')
-            record.debug_points = debug_abort(debugger, (args + [opt])[1:])
-            record.returncode = e.returncode
-            record.stderrdata = e.stderrdata.strip()
-            report.aborts.append(record)
+            try:
+                print_debug('A', end='')
+                record.debug_points = debug_abort(debugger, (args + [opt])[1:])
+                record.returncode = e.returncode
+                record.stderrdata = e.stderrdata.strip()
+                report.aborts.append(record)
+            except NoCrashException:
+                print("NoCrashException")
+                print("\tFirmsmith arguments: ", get_firmsmith_args_as_string(report.args))
+                print("\tCparser arguments:   ", " ".join(record.args))
+                pass
         finally:
             report.records.append(record)
+        return False 
+    
+    def populate_opts(opts):
+        result = []
+        for opt in opts:
+            opt = opt.replace('<size>', str(random.randint(1, 10)))
+            opt = opt.replace('<value>', str(random.randint(1, 10)))
+            result.append(opt)
+        return result
+    
+    for opt in optimizations:
+        print(opt)
+        if not opt.startswith('-O') and not report.is_bug_report():
+            break
+        check_opts(populate_opts([opt]))
+    
+    return
+    if not report.is_bug_report():
+        opts = None
+        for i in range(0, 10):
+            opts = populate_opts(random.sample(optimizations, 2))
+            print(opts)
+            if not check_opts(opts):
+                for other_opt in optimizations:
+                    check_opts(populate_opts([opts[0], other_opt]))
+                for other_opt in optimizations:
+                    check_opts(populate_opts([opts[1], other_opt]))
+                break
 
 
 def fuzz(n):
@@ -590,9 +631,10 @@ def fuzz(n):
 
             check_ir_graph(debugger, report)
             if report.is_bug_report():
+                identifier = report.get_identifier()
                 filename = REPORT_DIR + '/' + report.strid + '.txt'
                 with open(filename, 'w') as report_file:
-                    report_file.write(str(report))
+                    report_file.write(str(report).replace('bugreports', 'bugreports/' + identifier))
                     print("Report was written to %s (%d timeouts, %d aborts, %d crashes)"  % \
                         (filename, len(report.timeouts), len(report.aborts), len(report.crashes)))
                 command = """ bash -c '
@@ -601,10 +643,10 @@ def fuzz(n):
                     CATEGORY=%s;
                     mv $STRID-last_stop.vcg $REPORT_DIR &>/dev/null;
                     cd $REPORT_DIR;
-                    zip $STRID.zip *$STRID*
-                    mkdir -p $CATEGORY;
+                    zip $STRID.zip *$STRID* &> /dev/null
+                    mkdir -p $CATEGORY
                     mv *$STRID* $CATEGORY
-                '""" % (REPORT_DIR, report.strid, report.get_identifier())
+                '""" % (REPORT_DIR, report.strid, identifier)
                 subprocess.call(command, shell=True)
             else:
                 subprocess.call('bash -c "rm %s/*%s.{vcg,ir}"' % (REPORT_DIR, report.strid), shell=True)
