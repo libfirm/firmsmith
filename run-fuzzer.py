@@ -139,10 +139,12 @@ class Report:
             match = re_assertion.search(record.stderrdata)
             if match:
                 record_id += '_'.join(match.groups()).replace('/', '_')
+            else:
+                 record_id +=  '_'.join(record.args[3:])
             id_list.append(record_id)
 
-        id_list.sort()
-        return '_'.join(list(set(id_list[3:])))
+        print(len(self.timeouts), len(self.aborts), '_'.join(list(set(id_list[:3]))))
+        return '_'.join(list(set(id_list[:3])))
 
 
     def __str__(self):
@@ -349,6 +351,7 @@ def yield_process_events(debugger, process, n_stops = 0):
     listener = debugger.GetListener()
 
     data = []
+    timeout = False
     while not done:
         event = lldb.SBEvent()
         if listener.WaitForEvent(5 if stop_idx == 0 else 1, event):
@@ -360,9 +363,10 @@ def yield_process_events(debugger, process, n_stops = 0):
                 elif state == lldb.eStateStopped:
                     yield (state, event)
                     stop_idx += 1
-                    if stop_idx >= n_stops:
+                    if not timeout or stop_idx >= n_stops:
                         done = True
                     else:
+                        timeout = False
                         process.Continue()
                 elif state == lldb.eStateExited:
                     yield (state, event)
@@ -377,6 +381,7 @@ def yield_process_events(debugger, process, n_stops = 0):
                     #print(state)
                     #raise LLDBUnexpectState("Unexpect lldb process event")
         else:
+            timeout = True
             process.Stop()
 
     process.Kill()
@@ -431,7 +436,7 @@ def firmsmith_generate_ir_graph(args):
 # Cparser
 
 def get_cparser_optimizations():
-    optimizations = ['-O3', '-Os', '-Og']
+    optimizations = [] # ['-O3', '-Os', '-Og']
     output = subprocess.check_output([CPARSER_BIN, '--help-optimization'])
     lines = output.split('\n')
     for line in lines:
@@ -483,33 +488,6 @@ def get_common_stacktrace(stacktraces):
 class NoCrashException(Exception):
     pass
 
-def debug_abort(debugger, args):
-    """
-    Returns DebugPoint instance
-    """
-    debug_point = DebugPoint()
-    target = get_debugger_target(debugger)
-    launch_info = get_cparser_launch_info(args)
-    lldb_error = lldb.SBError()
-    process = target.Launch(launch_info, lldb_error)
-
-    debug_point.runtime = -time.time()
-    stopped = False
-    for (state, event) in yield_process_events(debugger, process, n_stops=0):
-        if state == lldb.eStateInvalid:
-            raise Exception("invalid lldb state")
-        elif state == lldb.eStateExited:
-            debug_point.runtime += time.time()
-            debug_point.stacktrace_frames = ['DID NOT CRASH IN DEBUGGER']
-            #raise NoCrashException("did not crash")
-        elif state == lldb.eStateStopped:
-            debug_point.runtime += time.time()
-            debug_point.stacktrace_frames = get_stacktrace_frames(process.threads[0])
-            stopped = True
-
-    return [ debug_point ]
-
-
 def debug_timeout(debugger, args):
     target = get_debugger_target(debugger)
     launch_info = get_cparser_launch_info(args)
@@ -523,8 +501,8 @@ def debug_timeout(debugger, args):
         if state == lldb.eStateInvalid:
             raise Exception("invalid lldb state")
         elif state == lldb.eStateExited:
-            print(lldb_error)
-            raise Exception("Exited noramlly")
+            debug_point.runtime += time.time()
+            debug_point.stacktrace_frames = ['DID NOT CRASH IN DEBUGGER']
         elif state == lldb.eStateStopped:
             n_stops += 1
             debug_point = DebugPoint()
@@ -539,6 +517,10 @@ def debug_timeout(debugger, args):
                     (current_report.strid + '-last_stop')
                 ci.HandleCommand(command, res)
     return debug_points
+
+
+def debug_abort(debugger, args):
+    return debug_timeout(debugger, args)
 
 
 def check_ir_graph(debugger, report):
@@ -595,9 +577,6 @@ def check_ir_graph(debugger, report):
         return result
     
     for opt in optimizations:
-        print(opt)
-        if not opt.startswith('-O') and not report.is_bug_report():
-            break
         check_opts(populate_opts([opt]))
     
     return
@@ -637,7 +616,7 @@ def fuzz(n):
                     report_file.write(str(report).replace('bugreports', 'bugreports/' + identifier))
                     print("Report was written to %s (%d timeouts, %d aborts, %d crashes)"  % \
                         (filename, len(report.timeouts), len(report.aborts), len(report.crashes)))
-                command = """ bash -c '
+                command = """ bash -xc '
                     REPORT_DIR=%s;
                     STRID=%s;
                     CATEGORY=%s;
