@@ -216,6 +216,9 @@ static ir_node *resolve_existing_temporary(cfb_t *cfb) {
         ) {
             repl[repl_count++] = temporary->node;
         }
+        if (repl_count == 100) {
+            break;
+        }
     }
 
     if (repl_count > 0) {
@@ -412,13 +415,6 @@ void resolve_cfg_temporaries(cfg_t *cfg) {
     }
 }
 
-
-static void resolve_mem_graph_walker_pre(cfb_t *cfb) {
-    set_cur_block(cfb->irb);
-    printf("last_mem %s(%ld)\n", get_irn_opname(cfb->last_mem), get_irn_node_nr(cfb->last_mem));
-    set_store(cfb->last_mem);
-}
-
 static struct ir_node* skip_id(ir_node *n) {
     if (get_irn_opcode(n) == iro_Id) {
         return skip_id(get_irn_n(n, 0));
@@ -428,14 +424,14 @@ static struct ir_node* skip_id(ir_node *n) {
 }
 
 static void resolve_mem_graph_walker_post(cfb_t *cfb) {
-    printf("Visiting cfb %s(%ld)\n",
+    if (0) printf("Visiting cfb %s(%ld)\n",
         get_irn_opname(cfb->irb),
         get_irn_node_nr(cfb->irb)
     );
     if (cfb->last_mem == NULL) return;
     set_cur_block(cfb->irb);
     ir_node *store = get_store();
-    printf("In %s(%ld):\n\tlast_mem = %s(%ld)\n\t     mem = %s(%ld)\n",
+    if (0) printf("In %s(%ld):\n\tlast_mem = %s(%ld)\n\t     mem = %s(%ld)\n",
         get_irn_opname(get_irn_n(cfb->last_mem, -1)),
         get_irn_node_nr(get_irn_n(cfb->last_mem, -1)),
         get_irn_opname(skip_id(cfb->last_mem)),
