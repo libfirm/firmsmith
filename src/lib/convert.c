@@ -59,13 +59,21 @@ static void convert_cfb(cfb_t *cfb) {
         }
     } else {
         /* No successors, we have an exit */
-        ir_node *dummy = new_Dummy(mode_Is);
-        cfb_add_temporary(cfb, dummy, TEMPORARY_NUMBER);
+        ir_graph *irg   = get_current_ir_graph();
+        ir_entity *ent  = get_irg_entity(irg);
+        ir_type *proto  = get_entity_type(ent);
 
-        ir_node *results[] = { dummy };
+        int n_res = get_method_n_ress(proto);
+        ir_node *results[n_res];
+
+        for (int i = 0; i < n_res; ++i) {
+            ir_type *type = get_method_res_type(proto, i);
+            ir_node *dummy = new_Dummy(get_type_mode(type));
+            cfb_add_temporary(cfb, dummy, TEMPORARY_NUMBER);
+            results[i] = dummy;
+        }
+
         ir_node *res = new_Return(cfb->mem, 1, results);
-
-        ir_graph *irg = get_current_ir_graph();
         ir_node *end_block = get_irg_end_block(irg);
         add_immBlock_pred(end_block, res);
     }
@@ -100,6 +108,7 @@ void convert_func(func_t *func) {
         set_method_param_type(proto, i, int_type);
     }
     set_method_res_type(proto, 0, int_type);
+    
     // Create graph
     ir_entity *ent = new_entity(get_glob_type(), new_id_from_str("_main"), proto);
     ir_graph *irg = new_ir_graph(ent, 2); // 1 local variable
