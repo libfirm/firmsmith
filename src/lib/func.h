@@ -4,8 +4,9 @@
 #include "cfg.h"
 
 typedef struct func_t {
-    char* name;
-    cfg_t* cfg;
+    char *name;
+    cfg_t *cfg;
+    ir_graph *irg;
 } func_t;
 
 func_t *new_random_func(void);

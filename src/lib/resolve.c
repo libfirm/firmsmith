@@ -2,16 +2,57 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "func.h"
 #include "cfb.h"
 #include "resolve.h"
 #include "utils.h"
 #include "random.h"
 #include "statistics.h"
 
+static ir_node* resolve_operator();
+static ir_node* resolve_memory_read();
+static ir_node* resolve_immediate_move();
+static ir_node* resolve_phi();
+static ir_node* resolve_existing_temporary();
+static ir_node* resolve_postpone();
+
+// Options
 int blocksize = 20;
 
+// Resolution context
+static func_t *current_func = NULL;
+static cfg_t *current_cfg = NULL;
 static cfb_t *current_cfb = NULL;
-static temporary_t *current_temporary = NULL;
+static temporary_t *current_temp = NULL;
+
+// Sliding probablilites
+double probabilites[6][2] = {
+    { 65, 25 },  // Operator
+    { 5, 5 },    // Memory read
+    { 5, 15 },   // Immediate move
+    { 5, 20 },   // Phi function
+    { 10, 25 },  // Existing temporary
+    { 10, 10 }   // Postpone
+};
+
+// Resolution methods
+ir_node* (*resolve_funcs[6])() = {
+    resolve_operator,
+    resolve_memory_read,
+    resolve_immediate_move,
+    resolve_phi,
+    resolve_existing_temporary,
+    resolve_postpone
+};
+
+// Binary ir operations
+static ir_node* (*bin_op_funcs[])(ir_node *, ir_node *, ir_node *) = {
+    new_r_Mul,
+    new_r_Add,
+    new_r_Sub
+};
+
+// FUNCTIONS
 
 static int is_dominated(ir_node* node, ir_node* dom);
 
@@ -19,91 +60,84 @@ void set_blocksize(int x) {
     blocksize = x;
 }
 
-static ir_node* (*bin_op_funcs[])(ir_node *, ir_node *, ir_node *) = {
-    new_r_Mul,
-    new_r_Add,
-    new_r_Sub
-};
-
-static ir_node *resolve_operator(cfb_t *cfb) {
+static ir_node *resolve_operator() {
     // Choose random operator
     int randomFuncIdx = rand() % (sizeof(bin_op_funcs) / sizeof(bin_op_funcs[0]));
     // Create dummy operands
-    ir_node* left_node = new_Dummy(mode_Is);
-    ir_node* right_node = new_Dummy(mode_Is);
-    cfb_add_temporary(cfb, left_node, TEMPORARY_NUMBER);
-    cfb_add_temporary(cfb, right_node, TEMPORARY_NUMBER);
+    ir_mode* mode = get_irn_mode(current_temp->node);
+    ir_node* left_node = new_Dummy(mode);
+    ir_node* right_node = new_Dummy(mode);
+    cfb_add_temporary(current_cfb, left_node, TEMPORARY_NUMBER);
+    cfb_add_temporary(current_cfb, right_node, TEMPORARY_NUMBER);
     // Return operation node
-    ir_node *op_node = bin_op_funcs[randomFuncIdx](cfb->irb, left_node, right_node);
-    assert(get_irn_n(op_node, -1) == cfb->irb);
+    ir_node *op_node = bin_op_funcs[randomFuncIdx](current_cfb->irb, left_node, right_node);
+    assert(get_irn_n(op_node, -1) == current_cfb->irb);
     return op_node;
 }
 
-static ir_node *resolve_immediate_move(cfb_t *cfb) {
-    (void)cfb;
+static ir_node *resolve_immediate_move() {
     ir_node *random_const = new_Const(new_tarval_from_long(rand(), mode_Is));
     return random_const;
 }
 
-static ir_node *resolve_alloc(cfb_t *cfb) {
-    if (is_dominated(current_temporary->node, cfb->mem)) {
+static ir_node *resolve_alloc() {
+    if (is_dominated(current_temp->node, current_cfb->mem)) {
         //printf("Can not resolve memory read, as cfb->mem dominates\n");
         return NULL;
     }
 
-
     ir_node *mem_dummy = new_Dummy(mode_M);
     ir_node *size = new_Const(new_tarval_from_long(10, mode_Iu));
-    ir_node *alloc = new_r_Alloc(cfb->irb, mem_dummy, size, 8);
+    ir_node *alloc = new_r_Alloc(current_cfb->irb, mem_dummy, size, 8);
 	ir_node *alloc_ptr = new_Proj(alloc, mode_P, pn_Alloc_res);
 	ir_node *alloc_mem = new_Proj(alloc, mode_M, pn_Alloc_M);
-    exchange(cfb->mem, alloc_mem);
-    cfb->mem = mem_dummy;
+    exchange(current_cfb->mem, alloc_mem);
+    current_cfb->mem = mem_dummy;
 
     return alloc_ptr;
 }
 
 // TODO: Use actualy memory read
-static ir_node *resolve_memory_read(cfb_t *cfb) {
-    if (is_dominated(current_temporary->node, cfb->mem)) {
+static ir_node *resolve_memory_read() {
+    if (is_dominated(current_temp->node, current_cfb->mem)) {
         //printf("Can not resolve memory read, as cfb->mem dominates\n");
         return NULL;
     }
 
     ir_node *dummy_ptr = new_Dummy(mode_P);
-    cfb_add_temporary(cfb, dummy_ptr, TEMPORARY_POINTER);    
+    cfb_add_temporary(current_cfb, dummy_ptr, TEMPORARY_POINTER);    
 
     ir_node *mem_dummy = new_Dummy(mode_M);
     ir_type *int_type = new_type_primitive(mode_Is);
-    ir_node *load = new_r_Load(cfb->irb, mem_dummy, dummy_ptr, mode_Is, int_type, cons_none);
+    ir_node *load = new_r_Load(current_cfb->irb, mem_dummy, dummy_ptr, mode_Is, int_type, cons_none);
 	ir_node *load_result = new_Proj(load, mode_Is, pn_Load_res);
 	ir_node *load_mem    = new_Proj(load, mode_M, pn_Load_M);
 
-    exchange(cfb->mem, load_mem);
-    cfb->mem = mem_dummy;
+    exchange(current_cfb->mem, load_mem);
+    current_cfb->mem = mem_dummy;
 	return load_result;
 }
 
-static void seed_store(cfb_t *cfb, ir_node *node) {
-    if (is_dominated(node, cfb->mem)) {
+static void seed_store(ir_node *node) {
+    if (is_dominated(node, current_cfb->mem)) {
         //printf("Can not resolve memory read, as cfb->mem dominates\n");
         return;
     }
 
     ir_node *dummy_ptr = new_Dummy(mode_P);
-    cfb_add_temporary(cfb, dummy_ptr, TEMPORARY_POINTER);
+    cfb_add_temporary(current_cfb, dummy_ptr, TEMPORARY_POINTER);
 
     ir_node *mem_dummy = new_Dummy(mode_M);
     ir_type *int_type = new_type_primitive(mode_Is);
-    ir_node *store = new_r_Store(cfb->irb, mem_dummy, dummy_ptr, node, int_type, cons_none);
+    ir_node *store = new_r_Store(current_cfb->irb, mem_dummy, dummy_ptr, node, int_type, cons_none);
 	ir_node *store_mem = new_Proj(store, mode_M, pn_Store_M);
-    exchange(cfb->mem, store_mem);
-    cfb->mem = mem_dummy;
+    exchange(current_cfb->mem, store_mem);
+    current_cfb->mem = mem_dummy;
 
 }
 
-static ir_node *resolve_pointer(cfb_t *cfb) {
-    ir_node *frame = get_irg_frame(get_irn_irg(cfb->irb));
+static ir_node *resolve_pointer() {
+    ir_node *frame = get_irg_frame(get_irn_irg(current_cfb->irb));
     return frame;
     //ir_node *conv = new_r_Conv(cfb->irb, frame, mode_Is);
     //return conv;
@@ -118,22 +152,22 @@ static ir_node *get_cf_op(ir_node *n)
 	return n;
 }
 
-static ir_node *resolve_phi(cfb_t *cfb) {
+static ir_node *resolve_phi() {
     //printf("resolve phi\n");
-    ir_mode *mode = get_irn_mode(current_temporary->node);
-    assert((mode == mode_P) ^ (current_temporary->type == TEMPORARY_NUMBER));
-    assert((mode == mode_Is) ^ (current_temporary->type == TEMPORARY_POINTER));
-    if (cfb->n_predecessors > 0) {
+    ir_mode *mode = get_irn_mode(current_temp->node);
+    assert((mode == mode_P) ^ (current_temp->type == TEMPORARY_NUMBER));
+    assert((mode == mode_Is) ^ (current_temp->type == TEMPORARY_POINTER));
+    if (current_cfb->n_predecessors > 0) {
     
-        ir_node *ins[cfb->n_predecessors];
+        ir_node *ins[current_cfb->n_predecessors];
         int pred_count = 0;
 
-        for (int i = 0, n = get_Block_n_cfgpreds(cfb->irb); i < n; ++i) {
-            ir_node *irpred  = get_nodes_block(get_cf_op(get_Block_cfgpred(cfb->irb, i)));
+        for (int i = 0, n = get_Block_n_cfgpreds(current_cfb->irb); i < n; ++i) {
+            ir_node *irpred  = get_nodes_block(get_cf_op(get_Block_cfgpred(current_cfb->irb, i)));
             cfb_t *pred = NULL;
 
-            cfb_for_each_predecessor(cfb, pred_it) {
-                cfb_t *it_pred = cfb_get_predecessor(cfb, pred_it);
+            cfb_for_each_predecessor(current_cfb, pred_it) {
+                cfb_t *it_pred = cfb_get_predecessor(current_cfb, pred_it);
                 if (it_pred->irb == irpred) {
                     pred = it_pred;
                     break;
@@ -142,15 +176,15 @@ static ir_node *resolve_phi(cfb_t *cfb) {
             assert(pred != NULL);
 
             ins[pred_count] = new_Dummy(mode);
-            cfb_add_temporary(pred, ins[pred_count], current_temporary->type);
+            cfb_add_temporary(pred, ins[pred_count], current_temp->type);
             pred_count++;
         }
 
-        ir_node *new_node = new_r_Phi(cfb->irb, cfb->n_predecessors, ins, mode);
+        ir_node *new_node = new_r_Phi(current_cfb->irb, current_cfb->n_predecessors, ins, mode);
         if (0) printf(
             "Resolve phi %ld with type %s\n",
             get_irn_node_nr(new_node),
-            current_temporary->type == TEMPORARY_NUMBER ? "number" : "pointer"
+            current_temp->type == TEMPORARY_NUMBER ? "number" : "pointer"
         );
         return new_node;
     } else {
@@ -204,15 +238,15 @@ static int is_dominated(ir_node* node, ir_node* dom) {
     return res;
 }
 
-static ir_node *resolve_existing_temporary(cfb_t *cfb) {
+static ir_node *resolve_existing_temporary() {
     ir_node *repl[100];
     int repl_count = 0;
 
-    cfb_for_each_temp(cfb, temporary) {
+    cfb_for_each_temp(current_cfb, temporary) {
         if (
              temporary->resolved &&
-             temporary->type == current_temporary->type &&
-             !is_dominated(temporary->node, current_temporary->node)
+             temporary->type == current_temp->type &&
+             !is_dominated(temporary->node, current_temp->node)
         ) {
             repl[repl_count++] = temporary->node;
         }
@@ -229,57 +263,37 @@ static ir_node *resolve_existing_temporary(cfb_t *cfb) {
     }
 }
 
-static ir_node *resolve_postpone(cfb_t *cfb) {
-    (void)cfb;
+static ir_node *resolve_postpone() {
     return NULL;
 }
 
-static ir_node * resolve_cmp(cfb_t *cfb) {
+static ir_node * resolve_cmp() {
     int random_relation = rand() % (ir_relation_greater_equal - ir_relation_false - 1) + 1;
     ir_node* temp1 = new_Dummy(mode_Is);
     ir_node* temp2 = new_Dummy(mode_Is);
-    ir_node* cmp = new_r_Cmp(cfb->irb, temp1, temp2, random_relation);
+    ir_node* cmp = new_r_Cmp(current_cfb->irb, temp1, temp2, random_relation);
     /*
     ;//printf("Created cmp %ld for block %ld\n",
         get_irn_node_nr(cmp), get_irn_node_nr(cfb->irb)
     );
     */
-    cfb_add_temporary(cfb, temp1, TEMPORARY_NUMBER);
-    cfb_add_temporary(cfb, temp2, TEMPORARY_NUMBER);
-    cfb->n_nodes += 2;
+    cfb_add_temporary(current_cfb, temp1, TEMPORARY_NUMBER);
+    cfb_add_temporary(current_cfb, temp2, TEMPORARY_NUMBER);
+    current_cfb->n_nodes += 2;
     return cmp;
 }
 
-// Percentage
-double probabilites[6][2] = {
-    { 65, 25 }, // Operator
-    { 5, 5 },   // Memory read
-    { 5, 15 },  // Immediate move
-    { 5, 20 },  // Phi function
-    { 10, 25 },  // Existing temporary
-    { 10, 10 }  // Postpone
-};
-
-ir_node* (*resolve_funcs[6])(cfb_t*) = {
-    resolve_operator,
-    resolve_memory_read,
-    resolve_immediate_move,
-    resolve_phi,
-    resolve_existing_temporary,
-    resolve_postpone
-};
-
 double interpolation_prefix_sum[6];
 
-static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
-                    current_temporary = temporary;
+static void resolve_temp(temporary_t *temporary) {
+    current_temp = temporary;
 
     /*printf("Resolve temp %s %ld in block %ld\n",
         get_irn_opname(temporary->node), get_irn_node_nr(temporary->node), get_irn_node_nr(temporary->node)
     );
     */
-    set_current_ir_graph(get_irn_irg(cfb->irb));
-    set_cur_block(cfb->irb);
+    set_current_ir_graph(get_irn_irg(current_cfb->irb));
+    set_cur_block(current_cfb->irb);
     ir_node *new_node = NULL;
 
     while (new_node == NULL) {
@@ -287,20 +301,20 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
         case TEMPORARY_POINTER: {
             int choice = rand() % 2;
             if (choice == 0) {
-                new_node = resolve_alloc(cfb);
+                new_node = resolve_alloc();
             } else if (choice == 1) {
-                new_node = resolve_phi(cfb);
+                new_node = resolve_phi();
             } else {
-                new_node = resolve_existing_temporary(cfb);
+                new_node = resolve_existing_temporary();
             }
             break;
         }
         case TEMPORARY_BOOLEAN: {
-            new_node = resolve_cmp(cfb);
+            new_node = resolve_cmp();
             break;
         }
         case TEMPORARY_NUMBER: {
-            double factor = ((double)cfb->n_nodes) / ((double)blocksize);
+            double factor = ((double)current_cfb->n_nodes) / ((double)blocksize);
             factor = factor > 1.0 ? 1.0 : factor; 
             get_interpolation_prefix_sum_table(6, probabilites, interpolation_prefix_sum, factor);
             double random = get_random_percentage();
@@ -310,7 +324,7 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
             for (int i = 0; i < 6 && !resolved; ++i) {
                 if (interpolation_prefix_sum[i] > random) {
                     //printf("%d : %f >? %f\n", i, interpolation_prefix_sum[i], random);
-                    new_node = resolve_funcs[i](cfb);
+                    new_node = resolve_funcs[i](current_cfb);
                     //printf("New node %ld\n", get_irn_node_nr(new_node));
                     resolved = 1;
                 }
@@ -344,7 +358,7 @@ static void resolve_temp(cfb_t *cfb, temporary_t *temporary) {
     temporary->resolved = 1;
 
     if (temporary->type == TEMPORARY_NUMBER && rand() % 8 == 1) {
-        seed_store(cfb, new_node);
+        seed_store(new_node);
     }
     //printf("Removing dummy\n");
 }
@@ -377,7 +391,7 @@ static void resolve_cfb_temporaries(cfb_t *cfb) {
 resolve:
     cfb_for_each_temp(cfb, temporary) {
         if (!temporary->resolved && temporary->type == TEMPORARY_POINTER) {
-            resolve_temp(cfb, temporary);
+            resolve_temp(temporary);
             //_list_del(&temporary->head);
             cfb->n_temporaries -= 1;
             goto resolve;
@@ -386,7 +400,7 @@ resolve:
 
     cfb_for_each_temp(cfb, temporary) {
         if (!temporary->resolved) {
-            resolve_temp(cfb, temporary);
+            resolve_temp(temporary);
             //_list_del(&temporary->head);
             cfb->n_temporaries -= 1;
             goto resolve;
@@ -404,7 +418,7 @@ resolve:
 
 }
 
-void resolve_cfg_temporaries(cfg_t *cfg) {
+static void resolve_cfg_temporaries(cfg_t *cfg) {
     //edges_activate(get_current_ir_graph());
     for (int i = 0; i < cfg->n_blocks; ++i) {
         cfb_t *cfb = cfg->blocks[i];
@@ -452,4 +466,26 @@ void resolve_mem_graph(cfg_t *cfg) {
             cfb_walk_predecessors(cfb, NULL, resolve_mem_graph_walker_post, NULL);
         }
     }
+}
+
+static void resolve_cfg(cfg_t *cfg) {
+    current_cfg = cfg;
+    ir_type *proto = get_entity_type(get_irg_entity(current_func->irg));
+    assert(is_Method_type(proto));
+    ir_node *args = get_irg_args(current_func->irg);
+    cfb_t *start = cfg_get_start(cfg);
+    for (size_t i = 0; i < get_method_n_params(proto); ++i) {
+        ir_type *type = get_method_param_type(proto, i);
+        ir_node *node = new_Proj(args, get_type_mode(type), i);
+        temporary_t *temp = new_temporary(node, TEMPORARY_NUMBER);
+        temp->resolved = 1;
+        list_add_tail(&temp->head, &start->temporaries);
+    }
+    resolve_cfg_temporaries(cfg);
+}
+
+void resolve_func(func_t *func) {
+    current_func = func;
+    set_current_ir_graph(func->irg);
+    resolve_cfg(func->cfg);
 }

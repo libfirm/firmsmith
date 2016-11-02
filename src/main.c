@@ -32,7 +32,7 @@ static int action_run(const char *argv0) {
 	// Construct corresponding ir node tree
 	convert_func(func);
 	//cfg_print(func->cfg);
-	resolve_cfg_temporaries(func->cfg);
+	resolve_func(func);
 	resolve_mem_graph(func->cfg);
 	finalize_convert(func->cfg);
 

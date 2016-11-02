@@ -3,7 +3,7 @@
 
 #include "cfg.h"
 
-void resolve_cfg_temporaries(cfg_t *cfg);
+void resolve_func(func_t *func);
 void set_blocksize(int x);
 void resolve_mem_graph(cfg_t *cfg);
 

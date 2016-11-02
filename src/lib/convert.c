@@ -94,15 +94,19 @@ void convert_func(func_t *func) {
     // Construct Int Type 
     ir_type *int_type = new_type_primitive(mode_Is);
     // Construct method type
-    ir_type *proto = new_type_method(1, 1, false, cc_cdecl_set, mtp_no_property);
+    int nparams = 5;
+    ir_type *proto = new_type_method(5, 1, false, cc_cdecl_set, mtp_no_property);
+    for (int i = 0; i < nparams; ++i) {
+        set_method_param_type(proto, i, int_type);
+    }
     set_method_res_type(proto, 0, int_type);
-    set_method_param_type(proto, 0, int_type);
     // Create graph
     ir_entity *ent = new_entity(get_glob_type(), new_id_from_str("_main"), proto);
     ir_graph *irg = new_ir_graph(ent, 2); // 1 local variable
 
     // Store old irg, and switch to new irg
     //ir_graph *old_irg = get_current_ir_graph(); 
+    func->irg = irg;
     set_current_ir_graph(irg);
 
     // Convert control flow graph
