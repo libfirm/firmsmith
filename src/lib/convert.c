@@ -111,7 +111,7 @@ void convert_func(func_t *func) {
     }
 
     // Create graph
-    ir_entity *ent = new_entity(get_glob_type(), new_id_from_str("_main"), proto);
+    ir_entity *ent = new_entity(get_glob_type(), new_id_from_str(func->name), proto);
     ir_graph *irg = new_ir_graph(ent, 2); // 1 local variable
 
     // Store old irg, and switch to new irg
@@ -127,7 +127,16 @@ void convert_func(func_t *func) {
     //mature_immBlock(get_r_cur_block(irg));
 }
 
-void finalize_convert(cfg_t *cfg) {
-    cfb_t *start = cfg_get_start(cfg);
-    irg_finalize_cons(get_irn_irg(start->irb));
+void convert_prog(prog_t *prog) {
+    for (size_t i = 0; i < ARR_LEN(prog->funcs); ++i) {
+        convert_func(prog->funcs[i]);
+    }
+}
+
+void finalize_convert(prog_t *prog) {
+    for (size_t i = 0; i < ARR_LEN(prog->funcs); ++i) {
+        cfg_t *cfg = prog->funcs[i]->cfg;
+        cfb_t *start = cfg_get_start(cfg);
+        irg_finalize_cons(get_irn_irg(start->irb));
+    }
 }

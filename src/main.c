@@ -8,6 +8,7 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include "lib/prog.h"
 #include "lib/statistics.h"
 #include "lib/optimizations.h"
 #include "lib/convert.h"
@@ -28,13 +29,12 @@ static int action_run(const char *argv0) {
 	printf("Used seed: %ld\n\n", seed);
 
 	// Create random function
-	func_t* func = new_random_func(10, 1);
+	prog_t* prog = new_random_prog();
 	// Construct corresponding ir node tree
-	convert_func(func);
+	convert_prog(prog);
 	//cfg_print(func->cfg);
-	resolve_func(func);
-	resolve_mem_graph(func->cfg);
-	finalize_convert(func->cfg);
+	resolve_prog(prog);
+	finalize_convert(prog);
 
 	irg_assert_verify(get_current_ir_graph());
 	// Dump ir file

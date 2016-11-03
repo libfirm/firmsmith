@@ -489,3 +489,10 @@ void resolve_func(func_t *func) {
     set_current_ir_graph(func->irg);
     resolve_cfg(func->cfg);
 }
+
+void resolve_prog(prog_t *prog) {
+    for (size_t i = 0; i < ARR_LEN(prog->funcs); ++i) {
+        resolve_func(prog->funcs[i]);
+        resolve_mem_graph(prog->funcs[i]->cfg);
+    }
+}

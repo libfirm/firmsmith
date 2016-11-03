@@ -3,8 +3,10 @@
 
 #include <libfirm/firm.h>
 
+#include "prog.h"
 #include "func.h"
 
 void convert_func(func_t* func);
-void finalize_convert(cfg_t *cfg);
+void convert_prog(prog_t* prog);
+void finalize_convert(prog_t *prog);
 #endif
