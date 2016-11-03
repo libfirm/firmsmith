@@ -102,7 +102,12 @@ void convert_func(func_t *func) {
     // Construct Int Type 
     ir_type *int_type = new_type_primitive(mode_Is);
     // Construct method type
-    ir_type *proto = new_type_method(func->n_params, func->n_res, false, cc_cdecl_set, mtp_no_property);
+    ir_type *proto = new_type_method(
+        func->n_params, func->n_res, false, cc_cdecl_set,
+        (func->name[0] == 'm' || rand() % 2 == 0) ?
+            mtp_no_property :
+            mtp_property_inline_recommended
+    );
     for (int i = 0; i < func->n_params; ++i) {
         set_method_param_type(proto, i, int_type);
     }

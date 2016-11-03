@@ -20,6 +20,7 @@ static ir_node* resolve_postpone();
 int blocksize = 20;
 
 // Resolution context
+static prog_t *current_prog = NULL;
 static func_t *current_func = NULL;
 static cfg_t *current_cfg = NULL;
 static cfb_t *current_cfb = NULL;
@@ -48,11 +49,23 @@ ir_node* (*resolve_funcs[6])() = {
 // Binary ir operations
 static ir_node* (*bin_op_funcs[])(ir_node *, ir_node *, ir_node *) = {
     new_r_Mul,
-    new_r_Add,
-    new_r_Sub
+    new_r_Add
 };
 
+
 // FUNCTIONS
+
+static int indent = 0;
+static void print_func_call_graph(func_t *func) {
+    for (int i = 0; i < indent; ++i) printf(" ");
+    printf("%s\n", func->name);
+    indent++;
+    for (int i = 0; i < ARR_LEN(func->calls); ++i) {
+        assert(func->calls[i] != func);
+        if (func->n_params == 1) print_func_call_graph(func->calls[i]);
+    }
+    indent--;
+}
 
 static int is_dominated(ir_node* node, ir_node* dom);
 
@@ -263,8 +276,54 @@ static ir_node *resolve_existing_temporary() {
     }
 }
 
+static int postponed = 0;
 static ir_node *resolve_postpone() {
-    return NULL;
+    if (is_dominated(current_temp->node, current_cfb->mem)) {
+        //printf("Can not resolve memory read, as cfb->mem dominates\n");
+        return NULL;
+    }
+
+    func_t *func = current_prog->funcs[(rand() % (ARR_LEN(current_prog->funcs) - 1)) + 1];
+    assert(func);
+
+    if (0 && func_is_dominated(func, current_func)) {
+        //printf("Current func is called by chosen function. Abort mission\n");
+        return NULL;
+    }
+
+    if (ARR_LEN(current_func->calls) >= 1) {
+        return NULL;
+    }
+
+    // we're doing this!
+    func_add_call(current_func, func);
+    //print_func_call_graph(current_prog->funcs[0]);
+    //printf("%s call %s\n", current_func->name, func->name);
+
+    ir_graph *irg   = func->irg;
+    ir_entity *ent  = get_irg_entity(irg);
+    ir_type *proto  = get_entity_type(ent);
+
+    int n_res = get_method_n_params(proto);
+    ir_node *params[n_res];
+    for (int i = 0; i < n_res; ++i) {
+        ir_type *type = get_method_param_type(proto, i);
+        ir_node *dummy = new_Dummy(get_type_mode(type));
+        cfb_add_temporary(current_cfb, dummy, TEMPORARY_NUMBER);
+        params[i] = dummy;
+    }
+
+    ir_node *mem_dummy = new_Dummy(mode_M);
+    ir_node *call = new_Call(
+        mem_dummy, new_Address(ent),
+        func->n_params, params, proto
+    );
+	ir_node *call_mem = new_Proj(call, mode_M, pn_Call_M);
+    exchange(current_cfb->mem, call_mem);
+    current_cfb->mem = mem_dummy;
+	ir_node *tuple  = new_Proj(call, mode_T, pn_Call_T_result);
+	ir_node *result = new_Proj(tuple, mode_Is, 0);
+    return result;
 }
 
 static ir_node * resolve_cmp() {
@@ -490,9 +549,13 @@ void resolve_func(func_t *func) {
     resolve_cfg(func->cfg);
 }
 
+
+
 void resolve_prog(prog_t *prog) {
+    current_prog = prog;
     for (size_t i = 0; i < ARR_LEN(prog->funcs); ++i) {
         resolve_func(prog->funcs[i]);
         resolve_mem_graph(prog->funcs[i]->cfg);
     }
+    //print_func_call_graph(prog->funcs[0]);
 }
