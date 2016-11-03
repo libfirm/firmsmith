@@ -480,6 +480,8 @@ def get_common_stacktrace(stacktraces):
             # Hack to fix double frame listing bug
             while __remove_frame_number(stacktraces[i][indexes[i]]) == frame:
                 indexes[i] -= 1
+                if indexes[i] < 0:
+                    return common
 
         common.append(same)
 
@@ -501,8 +503,10 @@ def debug_timeout(debugger, args):
         if state == lldb.eStateInvalid:
             raise Exception("invalid lldb state")
         elif state == lldb.eStateExited:
+            debug_point = DebugPoint()
             debug_point.runtime += time.time()
             debug_point.stacktrace_frames = ['DID NOT CRASH IN DEBUGGER']
+            debug_points.append(debug_point)
         elif state == lldb.eStateStopped:
             n_stops += 1
             debug_point = DebugPoint()
