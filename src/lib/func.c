@@ -21,11 +21,13 @@ void destroy_func(func_t *func) {
     free(func);
 }
 
-func_t* new_random_func(void) {
+func_t* new_random_func(int n_params, int n_res) {
     func_t* func = new_func();
 
     // create unique name for function
     func->name = malloc(FUNC_NAME_LEN);
+    func->n_params = n_params;
+    func->n_res = n_res;
     snprintf(func->name, FUNC_NAME_LEN, "r_func_%d", func_counter);
     func_counter++;
 

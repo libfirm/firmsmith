@@ -28,7 +28,7 @@ static int action_run(const char *argv0) {
 	printf("Used seed: %ld\n\n", seed);
 
 	// Create random function
-	func_t* func = new_random_func();
+	func_t* func = new_random_func(10, 1);
 	// Construct corresponding ir node tree
 	convert_func(func);
 	//cfg_print(func->cfg);
