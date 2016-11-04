@@ -402,17 +402,20 @@ def get_firmsmith_random_args():
     # Calculate random block size
     blocksize = ord(os.urandom(1)) % (50 - graphsize / 2)
     # Return arguments
-    return dict(
-        graphsize=graphsize,
-        blocksize=blocksize,
-        seed=seed
-    )
+    return {
+        "cfg-size": graphsize,
+        "cfb-size": blocksize,
+        "seed":     seed
+    }
 
 
 def get_firmsmith_args_as_string(args):
     s = ""
     for k, v in args.iteritems():
-        s += ' --%s %s' % (k, v)
+        if v == None:
+            s += '-' + v
+        else:
+            s += ' --%s %s' % (k, v)
     return s
 
 
