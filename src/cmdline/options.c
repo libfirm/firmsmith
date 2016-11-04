@@ -43,7 +43,7 @@ static const char *prefix_arg(const char *prefix, options_state_t *s)
 
 char const *spaced_arg(char const *const arg, options_state_t *const s)
 {
-	char const *const option = &s->argv[s->i][1];
+	char const *const option = &s->argv[s->i][2];
 	if (streq(option, arg)) {
 		if (s->i + 1 < s->argc)
 			return s->argv[++s->i];
@@ -125,17 +125,17 @@ bool options_parse(options_state_t *s)
 
 	const char *arg;
 
-	if ((arg = spaced_arg("--seed", s)) != NULL) {
+	if ((arg = spaced_arg("seed", s)) != NULL) {
 		fs_params.prog.seed = atoi(arg);
-	} else if ((arg = spaced_arg("--strid", s)) != NULL) {
+	} else if ((arg = spaced_arg("strid", s)) != NULL) {
 		fs_params.prog.strid = arg;
-	} else if ((arg = spaced_arg("--nfuncs", s)) != NULL) {
+	} else if ((arg = spaced_arg("nfuncs", s)) != NULL) {
 		fs_params.prog.n_funcs = atoi(arg);
-	} else if ((arg = spaced_arg("--func-maxcalls", s)) != NULL) {
+	} else if ((arg = spaced_arg("func-maxcalls", s)) != NULL) {
 		fs_params.func.max_calls = atoi(arg);
-	} else if ((arg = spaced_arg("--cfg-size", s)) != NULL) {
+	} else if ((arg = spaced_arg("cfg-size", s)) != NULL) {
 		fs_params.cfg.n_blocks = atoi(arg);
-	} else if ((arg = spaced_arg("--cfb-size", s)) != NULL) {
+	} else if ((arg = spaced_arg("cfb-size", s)) != NULL) {
 		fs_params.cfb.n_nodes = atoi(arg);
 	} else {
 		return false;
