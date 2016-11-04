@@ -8,6 +8,7 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include "cmdline/parameters.h"
 #include "lib/prog.h"
 #include "lib/statistics.h"
 #include "lib/optimizations.h"
@@ -19,15 +20,10 @@
 
 #define LINK_COMMAND          "grep -vE '(\\.type|\\.size)' a.s > a.S && cc -m32 a.S"
 
-time_t seed = 0;
-
 int nostats = 0;
-char strid[256] = "main";
 
 static int action_run(const char *argv0) {
 	(void)argv0;
-	printf("Used seed: %ld\n\n", seed);
-
 	// Create random function
 	prog_t* prog = new_random_prog();
 	// Construct corresponding ir node tree
@@ -39,12 +35,12 @@ static int action_run(const char *argv0) {
 	irg_assert_verify(get_current_ir_graph());
 	// Dump ir file
 	char ir_file_name[256];
-	snprintf(ir_file_name, sizeof ir_file_name, "%s.ir", strid);
+	snprintf(ir_file_name, sizeof ir_file_name, "%s.ir", fs_params.prog.strid);
 	FILE *irout = fopen(ir_file_name, "w");
 	ir_export_file(irout);
 	fclose(irout);
 
-	dump_all_ir_graphs(strid);
+	dump_all_ir_graphs(fs_params.prog.strid);
 	
 	/*
 	(void)get_optimized_graph(get_current_ir_graph());
@@ -91,22 +87,15 @@ int main(int argc, char **argv)
 	struct timeval tval;
 	gettimeofday(&tval, NULL);
 
-	time(&seed);
-	seed ^= tval.tv_usec;
+	time((time_t*)&fs_params.prog.seed);
+	fs_params.prog.seed ^= (int)tval.tv_usec;
 	//t=1475511347l;
 	//t=1476053236l;
 
 	/* parse rest of options */
-	const char *arg;
 	for (state.i = 1; state.i < state.argc; ++state.i) {
-		if (options_parse_cf(&state)) {
+		if (options_parse(&state)) {
 			continue;
-		} else if ((arg = spaced_arg("-seed", &state)) != NULL) {
-			seed = atol(arg);
-		} else if (simple_arg("-nostats", &state)) {
-			nostats = 1;	
-		} else if ((arg = spaced_arg("-strid", &state)) != NULL) {
-			strncpy(strid, arg, sizeof strid);
 		} else {
 			fprintf(stderr, "unknown argument '%s'\n", argv[state.i]);
 			state.argument_errors = true;
@@ -116,7 +105,7 @@ int main(int argc, char **argv)
 		action_help(argv[0]);
 		return EXIT_FAILURE;
 	}
-	srand(seed);
+	srand(fs_params.prog.seed);
 
 	assert(state.action != NULL);
 	int ret = state.action(argv[0]);

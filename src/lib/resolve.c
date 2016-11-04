@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "../cmdline/parameters.h"
 #include "func.h"
 #include "cfb.h"
 #include "resolve.h"
@@ -15,9 +16,6 @@ static ir_node* resolve_immediate_move();
 static ir_node* resolve_phi();
 static ir_node* resolve_existing_temporary();
 static ir_node* resolve_postpone();
-
-// Options
-int blocksize = 20;
 
 // Resolution context
 static prog_t *current_prog = NULL;
@@ -60,7 +58,7 @@ static void print_func_call_graph(func_t *func) {
     for (int i = 0; i < indent; ++i) printf(" ");
     printf("%s\n", func->name);
     indent++;
-    for (int i = 0; i < ARR_LEN(func->calls); ++i) {
+    for (size_t i = 0; i < ARR_LEN(func->calls); ++i) {
         assert(func->calls[i] != func);
         if (func->n_params == 1) print_func_call_graph(func->calls[i]);
     }
@@ -68,10 +66,6 @@ static void print_func_call_graph(func_t *func) {
 }
 
 static int is_dominated(ir_node* node, ir_node* dom);
-
-void set_blocksize(int x) {
-    blocksize = x;
-}
 
 static ir_node *resolve_operator() {
     // Choose random operator
@@ -112,6 +106,10 @@ static ir_node *resolve_alloc() {
 
 // TODO: Use actualy memory read
 static ir_node *resolve_memory_read() {
+    if (fs_params.cfb.has_memory_ops == false) {
+        return NULL;
+    }
+
     if (is_dominated(current_temp->node, current_cfb->mem)) {
         //printf("Can not resolve memory read, as cfb->mem dominates\n");
         return NULL;
@@ -276,8 +274,11 @@ static ir_node *resolve_existing_temporary() {
     }
 }
 
-static int postponed = 0;
 static ir_node *resolve_postpone() {
+    if (fs_params.cfb.has_func_calls == false) {
+        return NULL;
+    }
+
     if (is_dominated(current_temp->node, current_cfb->mem)) {
         //printf("Can not resolve memory read, as cfb->mem dominates\n");
         return NULL;
@@ -286,12 +287,12 @@ static ir_node *resolve_postpone() {
     func_t *func = current_prog->funcs[(rand() % (ARR_LEN(current_prog->funcs) - 1)) + 1];
     assert(func);
 
-    if (0 && func_is_dominated(func, current_func)) {
+    if (!fs_params.prog.has_cycles && func_is_dominated(func, current_func)) {
         //printf("Current func is called by chosen function. Abort mission\n");
         return NULL;
     }
 
-    if (ARR_LEN(current_func->calls) >= 1) {
+    if ((int)ARR_LEN(current_func->calls) >= fs_params.func.max_calls) {
         return NULL;
     }
 
@@ -373,7 +374,7 @@ static void resolve_temp(temporary_t *temporary) {
             break;
         }
         case TEMPORARY_NUMBER: {
-            double factor = ((double)current_cfb->n_nodes) / ((double)blocksize);
+            double factor = ((double)current_cfb->n_nodes) / ((double)fs_params.cfb.n_nodes);
             factor = factor > 1.0 ? 1.0 : factor; 
             get_interpolation_prefix_sum_table(6, probabilites, interpolation_prefix_sum, factor);
             double random = get_random_percentage();

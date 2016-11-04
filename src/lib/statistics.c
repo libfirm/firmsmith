@@ -41,7 +41,7 @@ void print_op_stats(cfg_t *cfg) {
     ;//printf("========================\n");
     for (int i = 0; i < iro_last; ++i) {
         if (opcodes[i] != 0) {
-            ir_op* op = ir_get_opcode(i);
+            //ir_op* op = ir_get_opcode(i);
             ;//printf("%s: %d\n", get_op_name(op), opcodes[i]);
         }
     }

@@ -8,6 +8,7 @@
 #include <libfirm/be.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 help_sections_t help;
 
@@ -51,9 +52,20 @@ static void help_equals(const char *option, const char *optname,
 	help_simple(buf, explanation);
 }
 
-static void help_f_yesno(const char *option, const char *explanation)
+static void help_f_yesno(char *option, const char *explanation)
 {
-	help_simple(option, explanation);
+	assert(option[0] == '-' && option[1] == 'f');
+	int yesno_option_len     = strlen(option) + 4;
+	int yesno_explanation_len = strlen(explanation) + 10;
+	char *yesno_option      = malloc(yesno_option_len);
+	char *yesno_explanation = malloc(yesno_explanation_len);
+
+	snprintf(yesno_explanation, yesno_explanation_len, "Enable %s", explanation);
+	help_simple(option, yesno_explanation);
+
+	snprintf(yesno_option, yesno_option_len, "-fno-%s", option + 2);
+	snprintf(yesno_explanation, yesno_explanation_len, "Disable %s", explanation);	
+	help_simple(yesno_option, yesno_explanation);
 }
 
 static void put_choice(const char *choice, const char *explanation)
@@ -70,12 +82,20 @@ static void print_help_basic(const char *argv0)
 {
 	help_usage(argv0);
 	puts("");
-	help_simple("--help",                   "Display this information");
-	help_simple("--version",                "Display compiler version");
-	help_spaced("--graphsize", "n", 		"Set number of control flow blocks");
-	help_spaced("--blocksize", "n", 		"Set average number of nodes inside block");
-	help_spaced("--seed", "n", 				"Set seed for random graph generation");
-	help_simple("--nostats",				"Do not output stats");
+	help_simple("--help",               "Display this information");
+	help_simple("--version",            "Display compiler version");
+	help_spaced("--seed", "n", 		    "Set seed for random graph generation");
+	help_spaced("--strid", "id",	    "Set identifier used in output file generation");
+	help_f_yesno("-fstats", 		    "printing of generated graph statistics");
+	help_f_yesno("-ffunc-cycles", 	    "generation of cyclic function call graphs");
+	help_f_yesno("-ffunc-calls", 	    "generation of function calls");
+	help_f_yesno("-floops", 	    	"generation of loops in control flow graph");
+	help_f_yesno("-fmemory", 	    	"generation memory operations");
+	help_spaced("--nfuncs", "n",		"Number of generated functions");
+	help_spaced("--func-maxcalls", "n",	"Set limit for number of functions calls inside function");
+	help_spaced("--cfg-size", "n",		"Set number of generated blocks in control flow graph");
+	help_spaced("--cfb-size", "id",		"Set number of generated nodes in control flow block");
+
 }
 
 int action_help(const char *argv0)

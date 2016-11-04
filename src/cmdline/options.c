@@ -4,7 +4,6 @@
  */
 #include "options.h"
 #include "help.h"
-
 #include <assert.h>
 #include <string.h>
 #include "strutil.h"
@@ -54,25 +53,6 @@ char const *spaced_arg(char const *const arg, options_state_t *const s)
 	return NULL;
 }
 
-static const char *equals_arg(const char *prefix, options_state_t *s)
-{
-	char const *const option = &s->argv[s->i][1];
-	char const *const equals = strstart(option, prefix);
-	if (equals) {
-		if (equals[0] == '=') {
-			char const *const arg = equals + 1;
-			if (arg[0] != '\0')
-				return arg;
-			fprintf(stderr, "expected argument after '-%s'\n", option);
-			s->argument_errors = true;
-		} else if (equals[0] == '\0') {
-			fprintf(stderr, "expected '=' and argument after '-%s'\n", option);
-			s->argument_errors = true;
-		}
-	}
-	return NULL;
-}
-
 static const char *f_no_arg(bool *truth_value, options_state_t *s)
 {
 	const char *option = &s->argv[s->i][1];
@@ -118,23 +98,48 @@ static bool accept_prefix(options_state_t *const s, char const *const prefix,
 	return true;
 }
 
-bool options_parse_cf(options_state_t *s)
+
+bool options_parse(options_state_t *s)
 {
 	const char *full_option = s->argv[s->i];
 	if (full_option[0] != '-')
 		return false;
 
+	bool truth_value;
+	if (f_no_arg(&truth_value, s) != NULL) {
+		if (f_yesno_arg("-fstats", s)) {
+			fs_params.prog.has_stats = true;
+		} else if (f_yesno_arg("-ffunc-cycles", s)) {
+			fs_params.prog.has_cycles = truth_value;
+		} else if (f_yesno_arg("-ffunc-calls", s)) {
+			fs_params.cfb.has_func_calls = truth_value;
+		} else if (f_yesno_arg("-floops", s)) {
+			fs_params.cfg.has_loops = truth_value;;	
+		} else if (f_yesno_arg("-fmemory", s)) {
+			fs_params.cfb.has_memory_ops = truth_value;;
+		} else {
+			return NULL;
+		}
+		return true;
+	}
+
 	const char *arg;
-	if (simple_arg("-help", s)) {
-		s->action = action_help;
-	} else if ((arg = spaced_arg("-graphsize", s)) != NULL) {
-		int n = atoi(arg);
-		set_cfg_size(n);
-	}else if ((arg = spaced_arg("-blocksize", s)) != NULL) {
-		int n = atoi(arg);
-		set_blocksize(n);
+
+	if ((arg = spaced_arg("--seed", s)) != NULL) {
+		fs_params.prog.seed = atoi(arg);
+	} else if ((arg = spaced_arg("--strid", s)) != NULL) {
+		fs_params.prog.strid = arg;
+	} else if ((arg = spaced_arg("--nfuncs", s)) != NULL) {
+		fs_params.prog.n_funcs = atoi(arg);
+	} else if ((arg = spaced_arg("--func-maxcalls", s)) != NULL) {
+		fs_params.func.max_calls = atoi(arg);
+	} else if ((arg = spaced_arg("--cfg-size", s)) != NULL) {
+		fs_params.cfg.n_blocks = atoi(arg);
+	} else if ((arg = spaced_arg("--cfb-size", s)) != NULL) {
+		fs_params.cfb.n_nodes = atoi(arg);
 	} else {
 		return false;
 	}
 	return true;
+
 }

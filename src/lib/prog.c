@@ -1,7 +1,8 @@
+#include "../cmdline/parameters.h"
 #include "prog.h"
 
 prog_t *new_random_prog(void) {
-    int n_funcs = 100;
+    int n_funcs = fs_params.prog.n_funcs;
     prog_t *prog = malloc(sizeof(prog_t));
     prog->funcs = NEW_ARR_F(func_t*, n_funcs);
     for (int i = 0; i < n_funcs; ++i) {

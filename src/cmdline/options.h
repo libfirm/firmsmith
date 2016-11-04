@@ -5,6 +5,7 @@
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
+#include "parameters.h"
 #include <stdbool.h>
 
 typedef int (*action_func)(const char *argv0);
@@ -18,10 +19,7 @@ typedef struct options_state_t {
 	action_func action;
 } options_state_t;
 
-bool options_parse_cf(options_state_t *s);
-
-bool action_print_help(const char *argv0);
-void setup_target_machine(void);
+bool options_parse(options_state_t *s);
 
 char const *spaced_arg(char const *arg, options_state_t *s);
 bool simple_arg(const char *arg, options_state_t *s);
