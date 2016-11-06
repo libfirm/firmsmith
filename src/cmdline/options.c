@@ -116,7 +116,7 @@ bool options_parse(options_state_t *s)
 		} else if (f_yesno_arg("-floops", s)) {
 			fs_params.cfg.has_loops = truth_value;;	
 		} else if (f_yesno_arg("-fmemory", s)) {
-			fs_params.cfb.has_memory_ops = truth_value;;
+			fs_params.cfb.has_memory_ops = truth_value;
 		} else {
 			return NULL;
 		}
