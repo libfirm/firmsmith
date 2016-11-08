@@ -6,24 +6,24 @@
 
 #define for_each_ptr_lmem(list, iterator) list_for_each_entry(ptr_lmem_t, iterator, (&list->head), head)
 
-struct ptr_list_t;
+struct plist_t;
 
 typedef struct ptr_lmem_t {
     struct list_head head;
-    struct ptr_list_t *list;
+    struct plist_t *list;
     void* ptr;
 } ptr_lmem_t;
 
-typedef struct ptr_list_t {
+typedef struct plist_t {
     struct list_head head; 
     int count;
-} ptr_list_t;
+} plist_t;
 
 
-ptr_list_t* new_ptr_list(void);
-void ptr_list_add(ptr_list_t *list, void *ptr);
+plist_t* new_plist(void);
+void plist_add(plist_t *list, void *ptr);
 void ptr_lmem_delete(ptr_lmem_t *lmem);
 void ptr_lmem_free(ptr_lmem_t *lmem);
-int ptr_list_delete(ptr_list_t* list, void *ptr);
+int plist_delete(plist_t* list, void *ptr);
 
 #endif

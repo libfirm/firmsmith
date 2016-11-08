@@ -3,6 +3,7 @@
 
 #include <libfirm/adt/list.h>
 #include <libfirm/firm.h>
+#include <libfirm/firm_types.h>
 
 #define MAX_PREDECESSORS 10
 #define MAX_SUCCESSORS 2
@@ -30,7 +31,7 @@
 #define cfb_get_predecessor(__ignored, iterator) (iterator->cfb)
 
 #define cfb_for_each_temp(cfb, iterator) \
-    list_for_each_entry(temporary_t, iterator, (&cfb->temporaries), head)
+    list_for_each_entry(temp_t, iterator, (&cfb->temporaries), head)
 
 #define cfb_get_temp(__ignored, iterator) (iterator->cfb)
 
@@ -53,18 +54,12 @@ typedef struct cfb_t {
     int visited;
 } cfb_t;
 
-typedef enum temp_type {
-    TEMPORARY_BOOLEAN,
-    TEMPORARY_NUMBER,
-    TEMPORARY_POINTER
-} temp_type;
-
-typedef struct temporary_t {
+typedef struct temp_t {
     struct list_head head;
     int resolved;
-    temp_type type;
+    struct ir_type *type;
     ir_node *node;
-} temporary_t;
+} temp_t;
 
 typedef struct cfb_lmem_t {
     struct list_head head;
@@ -74,9 +69,9 @@ typedef struct cfb_lmem_t {
 typedef void (*cfb_walker_func)(cfb_t*);
 
 cfb_t *new_cfb(void);
-temporary_t *new_temporary(ir_node *temp, temp_type type);
+temp_t *new_temporary(ir_node *temp, ir_type *type);
 
-void cfb_add_temporary(cfb_t *cfb, ir_node *temp, temp_type type);
+void cfb_add_temporary(cfb_t *cfb, ir_node *temp, ir_type* type);
 void cfb_add_succ(cfb_t *cfb, cfb_t *succ);
 void cfb_print(cfb_t* block);
 

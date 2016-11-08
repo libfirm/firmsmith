@@ -4,8 +4,9 @@
 #include "cfg.h"
 #include "prog.h"
 
-void resolve_func(func_t *func);
+void initialize_resolve(void);
+void finish_resolve(void);
+
 void resolve_prog(prog_t *prog);
-void resolve_mem_graph(cfg_t *cfg);
 
 #endif

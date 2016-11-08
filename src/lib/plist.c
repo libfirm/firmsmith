@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "ptr_list.h"
+#include "plist.h"
 
 static ptr_lmem_t *new_ptr_lmem(void *ptr) {
     ptr_lmem_t *lmem = malloc(sizeof(ptr_lmem_t));
@@ -10,14 +10,14 @@ static ptr_lmem_t *new_ptr_lmem(void *ptr) {
     return lmem;
 }
 
-ptr_list_t* new_ptr_list() {
-    ptr_list_t *list = malloc(sizeof(ptr_list_t));
+plist_t* new_plist() {
+    plist_t *list = malloc(sizeof(plist_t));
     INIT_LIST_HEAD(&list->head);
     list->count = 0;
     return list;
 }
 
-void ptr_list_add(ptr_list_t *list, void *ptr) {
+void plist_add(plist_t *list, void *ptr) {
     ptr_lmem_t *lmem = new_ptr_lmem(ptr);
     list_add_tail(&lmem->head, &list->head);
     lmem->list = list;
@@ -40,7 +40,7 @@ void ptr_lmem_free(ptr_lmem_t *lmem) {
     free(lmem);
 }
 
-int ptr_list_delete(ptr_list_t* list, void *ptr) {
+int plist_delete(plist_t* list, void *ptr) {
     int deletions = 0;
     for_each_ptr_lmem(list, lmem) {
         if (lmem->ptr == ptr) {

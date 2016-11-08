@@ -14,8 +14,8 @@ static cfb_lmem_t *new_cfb_lmem(cfb_t *cfb) {
     return lmem;
 }
 
-temporary_t *new_temporary(ir_node *node, temp_type type) {
-    temporary_t *temp = malloc(sizeof(temporary_t));
+temp_t *new_temporary(ir_node *node, ir_type *type) {
+    temp_t *temp = malloc(sizeof(temp_t));
     INIT_LIST_HEAD(&temp->head);
     temp->node = node;
     temp->type = type;
@@ -23,9 +23,11 @@ temporary_t *new_temporary(ir_node *node, temp_type type) {
     return temp;
 }
 
-void cfb_add_temporary(cfb_t *cfb, ir_node *node, temp_type type) {
+void cfb_add_temporary(cfb_t *cfb, ir_node *node, ir_type *type) {
+    assert(!is_Primitive_type(type) || get_irn_mode(node) == get_type_mode(type));
+    assert(is_Primitive_type(type) || get_irn_mode(node) == mode_P);
     ;//printf("adding %s (%ld) to irb %ld (%d temps)\n",  get_irn_opname(node), get_irn_node_nr(node), get_irn_node_nr(cfb->irb), cfb->n_temporaries);
-    temporary_t *temp = new_temporary(node, type);
+    temp_t *temp = new_temporary(node, type);
     list_add_tail(&temp->head, &cfb->temporaries);
     cfb->n_temporaries += 1;
     cfb->n_nodes += 1;
@@ -113,7 +115,7 @@ cfb_t *cfb_transform_T2a(cfb_t *cfb) {
         cfb_del_succ(cfb, lmem);
         /* Add edge to new block */
         cfb_add_succ(new_block, lmem->cfb);
-        free(lmem);
+        //free(lmem);
     }
     cfb_add_succ(cfb, new_block);
     return new_block;
@@ -134,7 +136,7 @@ cfb_t *cfb_transform_T2b(cfb_t *cfb) {
         cfb_add_succ(new_block, succ);
         // Delete edge from original block
         cfb_del_succ(cfb, lmem_first);
-        free(lmem_first);
+        //free(lmem_first);
         cfb_add_succ(cfb, new_block);
     }
     return new_block;

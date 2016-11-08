@@ -6,7 +6,7 @@ parameters_t fs_params = {
         .strid = "main",
         .has_stats = false,
         .has_cycles = true,
-        .n_funcs = 5
+        .n_funcs = 1
     },
     .func = {
         .max_calls = 2

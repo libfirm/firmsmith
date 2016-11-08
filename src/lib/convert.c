@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "types.h"
 #include "convert.h"
 #include "cfg.h"
 #include "cfb.h"
@@ -31,7 +32,7 @@ static void convert_cfb(cfb_t *cfb) {
         ir_node *dummy = new_Dummy(mode_b);
         ir_node *cnd = new_Cond(dummy);
 
-        cfb_add_temporary(cfb, dummy, TEMPORARY_BOOLEAN);
+        cfb_add_temporary(cfb, dummy, new_type_primitive(mode_b));
 
         int succ_count = 0;
         cfb_for_each_successor(cfb, succ_iterator) {
@@ -69,7 +70,7 @@ static void convert_cfb(cfb_t *cfb) {
         for (int i = 0; i < n_res; ++i) {
             ir_type *type = get_method_res_type(proto, i);
             ir_node *dummy = new_Dummy(get_type_mode(type));
-            cfb_add_temporary(cfb, dummy, TEMPORARY_NUMBER);
+            cfb_add_temporary(cfb, dummy, type);
             results[i] = dummy;
         }
 
@@ -100,7 +101,7 @@ static void convert_cfg(cfg_t *cfg) {
 
 void convert_func(func_t *func) {
     // Construct Int Type 
-    ir_type *int_type = new_type_primitive(mode_Is);
+    ir_type *int_type = get_int_type();
     // Construct method type
     ir_type *proto = new_type_method(
         func->n_params, func->n_res, false, cc_cdecl_set,

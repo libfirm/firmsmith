@@ -8,6 +8,10 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include <libfirm/firm.h>
+#include <libfirm/adt/array.h>
+#include "driver/firm_opt.h"
+#include "lib/types.h"
 #include "cmdline/parameters.h"
 #include "lib/prog.h"
 #include "lib/statistics.h"
@@ -17,14 +21,40 @@
 #include "cmdline/options.h"
 #include "cmdline/help.h"
 #include <assert.h>
+#include "driver/firm_machine.h"
 
 #define LINK_COMMAND          "grep -vE '(\\.type|\\.size)' a.s > a.S && cc -m32 a.S"
 
 int nostats = 0;
 
+static void initialize_firmsmith() {
+	gen_firm_init();
+	//firm_option("no-opt");
+	//set_optimize(0);
+	machine_triple_t *machine = firm_get_host_machine();
+	setup_firm_for_machine(machine);
+	initialize_types();
+	initialize_resolve();
+}
+
+static void finish_firmsmith() {
+	finish_resolve();
+	finish_types();
+	gen_firm_finish();
+}
+
+static void verify_no_dummy(ir_node *node, void *env) {
+	(void)env;
+	if (get_irn_opcode(node) == iro_Dummy) {
+		fprintf(stderr, "Dummy node [%ld] found in block [%ld]\n",
+			get_irn_node_nr(node), get_irn_node_nr(get_nodes_block(node)));
+		assert(NULL && "Verify no dummy");
+	}
+}
+
 static int action_run(const char *argv0) {
 	(void)argv0;
-	// Create random function
+	// Create ranm function
 	prog_t* prog = new_random_prog();
 	// Construct corresponding ir node tree
 	convert_prog(prog);
@@ -41,21 +71,26 @@ static int action_run(const char *argv0) {
 	fclose(irout);
 
 	dump_all_ir_graphs(fs_params.prog.strid);
+
+	for (size_t i = 0; i < ARR_LEN(prog->funcs); ++i) {
+		irg_walk_graph(prog->funcs[i]->irg, verify_no_dummy, NULL, NULL);
+	}
 	
 	/*
 	(void)get_optimized_graph(get_current_ir_graph());
 	assert(irg_verify(get_current_ir_graph()) && "valid graph");
-
-
+	*/
+	
 	// Code generation
-	FILE *out = fopen("a.s", "w");
+	FILE *out = fopen("main.s", "w");
 	if(out == NULL) {
 		fprintf(stderr, "couldn't open a.s for writing: %s\n", strerror(errno));
 		return 1;
 	}
-	be_main(out, "");
+	generate_code(out, "");
 	fclose(out);
-
+	
+	/*
 
 	// Stats
 	if (!nostats) {
@@ -64,8 +99,6 @@ static int action_run(const char *argv0) {
 	}
 
 	// finish libfirm
-	ir_finish();
-
 	system(LINK_COMMAND);
 	*/
 	return EXIT_SUCCESS;
@@ -73,6 +106,7 @@ static int action_run(const char *argv0) {
 
 int main(int argc, char **argv)
 {
+
 	options_state_t state;
 	memset(&state, 0, sizeof(state));
 	state.argc   = argc;
@@ -80,8 +114,7 @@ int main(int argc, char **argv)
 	state.action = action_run;
 
 	// initialize libFirm
-	ir_init();
-	set_opt_optimize(0);
+	initialize_firmsmith();
 
 	// Set seed
 	struct timeval tval;
@@ -109,6 +142,8 @@ int main(int argc, char **argv)
 
 	assert(state.action != NULL);
 	int ret = state.action(argv[0]);
+
+	finish_firmsmith();
 
 	return ret;
 }

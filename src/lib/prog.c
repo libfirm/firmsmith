@@ -1,3 +1,5 @@
+#include <libfirm/adt/array.h>
+
 #include "../cmdline/parameters.h"
 #include "prog.h"
 
@@ -13,4 +15,18 @@ prog_t *new_random_prog(void) {
         prog->funcs[i] = func;
     }
     return prog;
+}
+
+/**
+  * Returns random function associated with program,
+  * which is not the main function.
+  **/
+func_t *prog_get_random_func(prog_t* prog) {
+    func_t *func = NULL;
+    if (ARR_LEN(prog->funcs) > 1) {
+        int index = (rand() % (ARR_LEN(prog->funcs) - 1)) + 1;
+        func = prog->funcs[index];
+        assert(func);
+    }
+    return func;
 }

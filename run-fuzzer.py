@@ -90,6 +90,7 @@ class DebugRecord:
         if self.returncode != None:
             result += "#### cparser aborted with exit code %d\n\n" % self.returncode
             if self.stderrdata:
+                print(self.stderrdata)
                 result += "cparser produced the following data on stderr\n\n"
                 result += "\t%s\n\n" % self.stderrdata.replace('\n', '\n\t')
         elif self.timeout:
@@ -145,7 +146,6 @@ class Report:
                  record_id +=  '_'.join(record.args[3:])
             id_list.append(record_id)
 
-        print(len(self.timeouts), len(self.aborts), '_'.join(list(set(id_list[:3]))))
         return '_'.join(list(set(id_list[:3])))
 
 
@@ -356,7 +356,7 @@ def yield_process_events(debugger, process, n_stops = 0):
     timeout = False
     while not done:
         event = lldb.SBEvent()
-        if listener.WaitForEvent(5 if stop_idx == 0 else 1, event):
+        if listener.WaitForEvent(8 if stop_idx == 0 else 1, event):
             event_process = lldb.SBProcess.GetProcessFromEvent(event)
             if event_process and event_process.GetProcessID() == process.GetProcessID():
                 state = lldb.SBProcess.GetStateFromEvent(event)
@@ -553,7 +553,7 @@ def check_ir_graph(debugger, report):
         record.args = args[1:] + opts
         try:
             print_debug(".", end="")
-            set_timeout(5, lambda: run_cparser(args + opts))
+            set_timeout(10, lambda: run_cparser(args + opts))
             report.successes.append(record)
             return True
         except TimeoutError:
@@ -601,7 +601,6 @@ def fuzz(n):
             args = get_firmsmith_random_args()
             args.update({'strid': report.strid})
             report.args = get_firmsmith_args_as_string(args) + ' ' + firmsmith_option
-            print(report.args)
             try:
                 firmsmith_generate_ir_graph(report.args)
                 subprocess.call('bash -c "mv *%s.{vcg,ir} %s"' % (report.strid, REPORT_DIR), shell=True)
@@ -612,9 +611,9 @@ def fuzz(n):
                     filename = REPORT_DIR + '/' + report.strid + '.txt'
                     with open(filename, 'w') as report_file:
                         report_file.write(str(report).replace('bugreports', 'bugreports/' + identifier))
-                        print("Report was written to %s (%d timeouts, %d aborts, %d crashes)"  % \
-                            (filename, len(report.timeouts), len(report.aborts), len(report.crashes)))
-                    command = """ bash -xc '
+                        print("Report was written to %s (%d timeouts, %d aborts, %d successes)"  % \
+                            (filename.replace('reports/','reports/'+identifier+'/'), len(report.timeouts), len(report.aborts), len(report.successes)))
+                    command = """bash -c '
                         REPORT_DIR=%s;
                         STRID=%s;
                         CATEGORY=%s;
@@ -635,7 +634,11 @@ def fuzz(n):
 
 if __name__ == '__main__':
     # Defaults
-    default_cparser_options = map(lambda x: '-O3 ' + x, get_cparser_optimizations())
+    #default_cparser_options = map(lambda x: x, get_cparser_optimizations())
+    default_cparser_options = filter(
+        lambda x: x not in ['-fdeconv', '-freassociation', '-fthread-jumps', '-fcombo'],
+        get_cparser_optimizations()
+    )
     default_firmsmith_options = [
         # Few functions, complex callgraph
         '-ffunc-cycles --nfuncs 5 --func-maxcalls 5 --cfg-size 10 --cfb-size 10',
@@ -651,12 +654,12 @@ if __name__ == '__main__':
     parser.add_argument('--firmsmith-options',
         action='append', help='firmsmith options for graph generation')
     
+    print(sys.argv)
     fuzzer_options = vars(parser.parse_args(sys.argv[1:]))
     if fuzzer_options['cparser_options'] == None:
         fuzzer_options['cparser_options'] = default_cparser_options
     if fuzzer_options['firmsmith_options'] == None:
         fuzzer_options['firmsmith_options'] = default_firmsmith_options
-    print(fuzzer_options)
         
     now = datetime.now()
     fuzz(1000)

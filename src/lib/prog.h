@@ -9,5 +9,6 @@ typedef struct prog_t {
 } prog_t;
 
 prog_t *new_random_prog(void);
+func_t *prog_get_random_func(prog_t* prog);
 
 #endif

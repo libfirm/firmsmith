@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include <libfirm/adt/array.h>
+#include "../cmdline/parameters.h"
 #include "func.h"
 #include "cfg.h"
 
@@ -73,7 +74,7 @@ func_t* new_random_func(int n_params, int n_res) {
 
     // expand functiion graph
     func->cfg = new_cfg();
-    for (int i = 0; i < cfg_size; ++i) {
+    for (int i = 0; i < fs_params.cfg.n_blocks; ++i) {
         cfg_expand(func->cfg);
     }
 

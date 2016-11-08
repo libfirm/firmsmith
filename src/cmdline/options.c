@@ -6,7 +6,7 @@
 #include "help.h"
 #include <assert.h>
 #include <string.h>
-#include "strutil.h"
+#include "../adt/strutil.h"
 #include <stdlib.h>
 
 #include "../lib/func.h"
