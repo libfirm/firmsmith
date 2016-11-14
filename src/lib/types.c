@@ -56,15 +56,27 @@ static ir_type *get_registered_struct() {
 
 static void create_struct_type() {
     ir_type *type = get_registered_struct();
-    for (size_t i = 0; i < ARR_LEN(compound_types); ++i) {
-        if (compound_types[i] != type) {
-            //(void)get_registered_entity(type, compound_types[i]);
+    int offset = 0;
+    int n_members = 3 + rand() % 5;
+    for (int i = 0; i < n_members; ++i) {
+        int r = rand() % 4;
+        if (r == 0 && ARR_LEN(compound_types) > 1) {
+            // 25% chance to pick compound entity
+            int compound_idx = compound_idx = rand() % (ARR_LEN(compound_types) - 1);
+            ir_type *member_type = compound_types[compound_idx];
+            ir_entity *member_ent = get_registered_entity(type, member_type);
+            set_entity_offset(member_ent, offset);
+            offset += get_type_size(member_type);
+        } else {
+            // 75% change to primitive
+            ir_type *member_type  = get_random_prim_type();
+            ir_entity *member_ent = get_registered_entity(type, member_type);
+            set_entity_offset(member_ent, offset);
+            offset += get_mode_size_bytes(get_type_mode(member_type));
         }
     }
-    for (int i = 0; i < 3; ++i) {
-        ir_type *mem_type = get_random_prim_type();
-        (void)get_registered_entity(type, mem_type);
-    }
+    set_type_state(type, layout_fixed);
+    set_type_size(type, offset);
 }
 
 ir_type* get_pointer_type(void) {

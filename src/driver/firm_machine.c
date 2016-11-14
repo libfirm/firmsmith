@@ -71,7 +71,7 @@ static bool setup_os_support(const machine_triple_t *machine)
 	} else if (firm_is_darwin_os(machine)) {
 		set_be_option("objectformat=mach-o");
 		set_be_option("ia32-stackalign=4");
-		set_be_option("pic=true");
+		//set_be_option("pic=true");
 		set_compilerlib_name_mangle(compilerlib_name_mangle_underscore);
 	} else if (firm_is_windows_os(machine)) {
 		set_be_option("ia32-gasmode=mingw");
