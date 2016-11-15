@@ -203,11 +203,6 @@ static ir_node *adopt_const() {
   * Adds no further unresolved tempoaries.
   **/
 static ir_node *adopt_alloc() {
-    if (is_dominated(current_temp->node, current_cfb->mem)) {
-        assert(NULL && "Really?");
-        return NULL;
-    }
-
     // Dertmine type size
     assert(is_Pointer_type(current_temp->type));
     ir_type *pointee_type = get_pointer_points_to_type(current_temp->type);
@@ -254,11 +249,6 @@ static ir_node *adopt_load() {
         return NULL;
     }
 
-    if (is_dominated(current_temp->node, current_cfb->mem)) {
-        //printf("Can not resolve memory read, as cfb->mem dominates\n");
-        assert(NULL && "This really happens??");
-        return NULL;
-    }
     assert(is_Primitive_type(current_temp->type));
 
     ir_type *ref_type  = new_type_pointer(current_temp->type);
@@ -359,12 +349,6 @@ static ir_node *adopt_fcall() {
     // We currently do not support resolving compound temporaries
     // with function calls
     if (is_compound_type(current_temp->type)) {
-        return NULL;
-    }
-
-    if (is_dominated(current_temp->node, current_cfb->mem)) {
-        //printf("Can not resolve memory read, as cfb->mem dominates\n");
-        assert(NULL && "Can dummy really be dominated by mem?");
         return NULL;
     }
 
