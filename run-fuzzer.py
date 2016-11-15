@@ -660,7 +660,7 @@ if __name__ == '__main__':
         fuzzer_options['cparser_options'] = default_cparser_options
     if fuzzer_options['firmsmith_options'] == None:
         fuzzer_options['firmsmith_options'] = default_firmsmith_options
-        
+    print(fuzzer_options['firmsmith_options'])
     now = datetime.now()
     fuzz(1000)
 

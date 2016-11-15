@@ -206,9 +206,15 @@ static ir_node *adopt_alloc() {
     // Dertmine type size
     assert(is_Pointer_type(current_temp->type));
     ir_type *pointee_type = get_pointer_points_to_type(current_temp->type);
-    unsigned n_bits  = get_type_size(pointee_type);
-    unsigned n_bytes = (n_bits + (8 - 1)) / 8;
-    n_bytes = 100;
+    int n_bytes = -1;
+    if (is_Pointer_type(pointee_type) || is_Primitive_type(pointee_type)) {
+        ir_mode *mode = get_type_mode(pointee_type);
+        n_bytes       = get_mode_size_bytes(mode);
+    } else if (is_Struct_type(pointee_type) || is_Union_type(pointee_type)) {
+        n_bytes       = get_type_size(pointee_type);
+    }
+    assert(n_bytes > 0);
+
     ir_node *size    = new_Const(new_tarval_from_long(n_bytes, mode_Iu));
     // Alloc
     ir_node *mem_dummy = new_Dummy(mode_M);
@@ -444,7 +450,7 @@ static void seed_store(ir_node *node) {
     }
 
     // TODO: Allow to store pointers to compounds
-    if (!is_Primitive_type(current_temp->type)) {
+    if (is_Primitive_type(current_temp->type) && get_type_mode(current_temp->type) == mode_b) {
         return;
     }
 
@@ -458,6 +464,11 @@ static void seed_store(ir_node *node) {
         node, current_temp->type, cons_none);
 	ir_node *store_mem = new_Proj(store, mode_M, pn_Store_M);
     update_memory(mem_dummy, store_mem);
+
+    if (is_Pointer_type(current_temp->type)) {
+        printf("Storing pointer: %ld\n", get_irn_node_nr(store));
+    }
+
 }
 
 /**
@@ -512,10 +523,9 @@ replace:
 
     temporary->resolved = 1;
 
-    /*
-    if (temporary->type == TEMPORARY_NUMBER && rand() % 8 == 1) {
+    if (rand() % 8 == 1) {
         seed_store(new_node);
-    }*/
+    }
 }
 
 /**
