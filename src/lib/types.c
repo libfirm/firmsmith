@@ -79,6 +79,44 @@ static void create_struct_type() {
     set_type_size(type, offset);
 }
 
+static ir_type *get_registered_union() {
+    ir_type *type = new_type_union(id_unique("fs_union"));
+    ARR_APP1(ir_type*, compound_types, type);
+    return type;
+}
+
+static void create_union_type() {
+    ir_type *type = get_registered_union();
+    int max_size = 0;
+    int n_members = 3 + rand() % 5;
+    for (int i = 0; i < n_members; ++i) {
+        int r = rand() % 4;
+        if (r == 0 && ARR_LEN(compound_types) > 1) {
+            // 25% chance to pick compound entity
+            int compound_idx = compound_idx = rand() % (ARR_LEN(compound_types) - 1);
+            ir_type *member_type = compound_types[compound_idx];
+            ir_entity *member_ent = get_registered_entity(type, member_type);
+            set_entity_offset(member_ent, 0);
+            int member_size = get_type_size(member_type);
+            if (member_size > max_size) {
+                max_size = member_size;
+            }
+        } else {
+            // 75% change to primitive
+            ir_type *member_type  = get_random_prim_type();
+            ir_entity *member_ent = get_registered_entity(type, member_type);
+            set_entity_offset(member_ent, 0);
+            int member_size = get_mode_size_bytes(get_type_mode(member_type));
+            if (member_size > max_size) {
+                max_size = member_size;
+            }
+        }
+    }
+    set_type_state(type, layout_fixed);
+    set_type_size(type, max_size);
+}
+
+
 ir_type* get_pointer_type(void) {
     return primitive_types[0];
 }
@@ -143,8 +181,13 @@ void initialize_types(void) {
     create_primitive_types();
     entities = NEW_ARR_F(ir_entity*, 0);
     compound_types = NEW_ARR_F(ir_type*, 0);
-    create_struct_type();
-    create_struct_type();
+    for (int i = 0; i < 10; ++i) {
+        if (rand() % 2 == 0) {
+            create_union_type();
+        } else {
+            create_struct_type();
+        }
+    }
     for (size_t i = 0; i < ARR_LEN(compound_types); ++i) {
         print_type(compound_types[i]);
     }

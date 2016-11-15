@@ -28,11 +28,13 @@
 int nostats = 0;
 
 static void initialize_firmsmith() {
-	gen_firm_init();
+	//gen_firm_init();
 	//firm_option("no-opt");
-	//set_optimize(0);
-	machine_triple_t *machine = firm_get_host_machine();
-	setup_firm_for_machine(machine);
+	//s et_optimize(0);
+	ir_init();
+	set_optimize(0);
+	//machine_triple_t *machine = firm_get_host_machine();
+	//setup_firm_for_machine(machine);
 	initialize_types();
 	initialize_resolve();
 }
@@ -40,7 +42,8 @@ static void initialize_firmsmith() {
 static void finish_firmsmith() {
 	finish_resolve();
 	finish_types();
-	gen_firm_finish();
+	ir_finish();
+	//gen_firm_finish();
 }
 
 static void verify_no_dummy(ir_node *node, void *env) {
@@ -80,7 +83,8 @@ static int action_run(const char *argv0) {
 	(void)get_optimized_graph(get_current_ir_graph());
 	assert(irg_verify(get_current_ir_graph()) && "valid graph");
 	*/
-	
+		/*
+
 	// Code generation
 	FILE *out = fopen("main.s", "w");
 	if(out == NULL) {
@@ -90,7 +94,6 @@ static int action_run(const char *argv0) {
 	generate_code(out, "");
 	fclose(out);
 	
-	/*
 
 	// Stats
 	if (!nostats) {
