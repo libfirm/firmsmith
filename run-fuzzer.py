@@ -663,7 +663,9 @@ if __name__ == '__main__':
         action='append', help='cparser options to apply on generated graphs')
     parser.add_argument('--firmsmith-options',
         action='append', help='firmsmith options for graph generation')
-    
+    parser.add_argument('--debug', action='store_true', default=False,
+         help='enable debugging output')
+
     LOG.debug(sys.argv)
     fuzzer_options = vars(parser.parse_args(sys.argv[1:]))
     if fuzzer_options['cparser_options'] == None:
@@ -672,6 +674,8 @@ if __name__ == '__main__':
         fuzzer_options['firmsmith_options'] = default_firmsmith_options
     LOG.debug(fuzzer_options['firmsmith_options'])
     LOG.debug(fuzzer_options['cparser_options'])
+    if (fuzzer_options['debug']):
+        LOG.setLevel(logging.DEBUG)
     now = datetime.now()
     fuzz(1000)
 
