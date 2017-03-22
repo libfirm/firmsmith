@@ -659,6 +659,8 @@ if __name__ == '__main__':
     ]
     # Setup parser
     parser = argparse.ArgumentParser(description = 'FirmSmith Fuzzer')
+    parser.add_argument('count', nargs='?', default=3,
+        help='number of iterations (multiply by cparser and firmsmith option variants)')
     parser.add_argument('--cparser-options',
         action='append', help='cparser options to apply on generated graphs')
     parser.add_argument('--firmsmith-options',
@@ -672,8 +674,8 @@ if __name__ == '__main__':
 
     LOG.debug(sys.argv)
     fuzzer_options = vars(parser.parse_args(sys.argv[1:]))
-    CPARSER_BIN = fuzzer_options["cparser"]
-    FIRMSMITH_BIN = fuzzer_options["firmsmith"]
+    CPARSER_BIN = fuzzer_options['cparser']
+    FIRMSMITH_BIN = fuzzer_options['firmsmith']
     if fuzzer_options['cparser_options'] == None:
         fuzzer_options['cparser_options'] = default_cparser_options
     if fuzzer_options['firmsmith_options'] == None:
@@ -683,5 +685,6 @@ if __name__ == '__main__':
     if (fuzzer_options['debug']):
         LOG.setLevel(logging.DEBUG)
     now = datetime.now()
-    fuzz(1000)
+    LOG.info("Number of graphs to test: "+str(fuzzer_options['count']))
+    fuzz(fuzzer_options['count'])
 
