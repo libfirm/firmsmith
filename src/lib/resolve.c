@@ -236,8 +236,7 @@ static ir_node *adopt_member() {
     char type_name[256];
     ir_print_type(type_name, 256, pointee_type);
 
-    printf("Found entity %s for type %s\n",
-        get_entity_ident(ent), type_name);
+    //printf("Found entity %s for type %s\n", get_entity_ident(ent), type_name);
     ir_node *dummy  = new_Dummy(mode_P);
     cfb_add_temporary(
         current_cfb, dummy,
@@ -466,7 +465,7 @@ static void seed_store(ir_node *node) {
     update_memory(mem_dummy, store_mem);
 
     if (is_Pointer_type(current_temp->type)) {
-        printf("Storing pointer: %ld\n", get_irn_node_nr(store));
+        //printf("Storing pointer: %ld\n", get_irn_node_nr(store));
     }
 
 }
