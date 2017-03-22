@@ -31,12 +31,25 @@ This builds the `firmsmith` binary.
 
 ## Executing
 
-    ./run-fuzzer.py --cparser-options="-c"
+You can simply run it:
 
-This creates a lot of temporary files.
+    ./run-fuzzer.py
+
+However, this will lead to quite unreadable reports,
+because firmsmith never generates a main function,
+which means linking will always fail.
+Still, run-fuzzer correctly detects crashes,
+which look different than a linker error.
+
+Usually, you want to test a single optimization like `-fthread-jumps`.
+In this case, run it like this:
+
+    ./run-fuzzer.py --cparser-options="-fthread-jumps -c"
+
+The fuzzer creates a lot of temporary files.
 For cleanup run:
 
-    bash ./clean
+    bash clean
 
 ## Licence MIT
 
