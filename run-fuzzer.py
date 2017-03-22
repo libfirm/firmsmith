@@ -32,7 +32,7 @@ from datetime import datetime
 
 REPORT_DIR = './bugreports'
 FIRMSMITH_BIN = os.path.abspath('./build/debug/firmsmith')
-CPARSER_BIN = os.path.abspath('./../cparser/build/debug/cparser')
+CPARSER_BIN = "cparser"
 
 # Global vars
 
@@ -663,11 +663,17 @@ if __name__ == '__main__':
         action='append', help='cparser options to apply on generated graphs')
     parser.add_argument('--firmsmith-options',
         action='append', help='firmsmith options for graph generation')
+    parser.add_argument('--cparser', metavar='CC', default=CPARSER_BIN,
+        help='path to cparser binary')
+    parser.add_argument('--firmsmith', metavar='FS', default=FIRMSMITH_BIN,
+        help='path to firmsmith binary')
     parser.add_argument('--debug', action='store_true', default=False,
          help='enable debugging output')
 
     LOG.debug(sys.argv)
     fuzzer_options = vars(parser.parse_args(sys.argv[1:]))
+    CPARSER_BIN = fuzzer_options["cparser"]
+    FIRMSMITH_BIN = fuzzer_options["firmsmith"]
     if fuzzer_options['cparser_options'] == None:
         fuzzer_options['cparser_options'] = default_cparser_options
     if fuzzer_options['firmsmith_options'] == None:
