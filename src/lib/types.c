@@ -11,7 +11,7 @@ static ir_entity **entities      = NULL;
 
 static void print_type(ir_type *type);
 
-static void create_modes() {
+static void create_modes(void) {
     n_modes = 10;
     modes = calloc(n_modes, sizeof(ir_mode*));
     int i = 0;
@@ -30,7 +30,7 @@ static void create_modes() {
     assert(i == n_modes);
 }
 
-static void create_primitive_types() {
+static void create_primitive_types(void) {
     n_primitives = n_modes;
     primitive_types = calloc(n_primitives, sizeof(ir_type*));
     for (int i = 0; i < n_primitives; ++i) {
@@ -48,13 +48,13 @@ static ir_entity *get_registered_entity(ir_type *owner, ir_type *type) {
     return ent;
 }
 
-static ir_type *get_registered_struct() {
+static ir_type *get_registered_struct(void) {
     ir_type *type = new_type_struct(id_unique("fs_struct"));
     ARR_APP1(ir_type*, compound_types, type);
     return type;
 }
 
-static void create_struct_type() {
+static void create_struct_type(void) {
     ir_type *type = get_registered_struct();
     int offset = 0;
     int n_members = 3 + rand() % 5;
@@ -79,13 +79,13 @@ static void create_struct_type() {
     set_type_size(type, offset);
 }
 
-static ir_type *get_registered_union() {
+static ir_type *get_registered_union(void) {
     ir_type *type = new_type_union(id_unique("fs_union"));
     ARR_APP1(ir_type*, compound_types, type);
     return type;
 }
 
-static void create_union_type() {
+static void create_union_type(void) {
     ir_type *type = get_registered_union();
     int max_size = 0;
     int n_members = 3 + rand() % 5;

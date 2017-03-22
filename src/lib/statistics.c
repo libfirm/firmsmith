@@ -20,7 +20,7 @@ void print_cfg_stats(cfg_t *cfg) {
 
 unsigned opcodes[iro_last] = {0};
 
-static void op_stats_init() {
+static void op_stats_init(void) {
     for (int i = 0; i < iro_last; ++i) {
         opcodes[i] = 0;
     }

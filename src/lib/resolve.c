@@ -12,12 +12,12 @@
 #include "statistics.h"
 #include "types.h"
 
-static ir_node* adopt_operator();
-static ir_node* adopt_load();
-static ir_node* adopt_const();
-static ir_node* adopt_phi();
-static ir_node* adopt_existing();
-static ir_node* adopt_fcall();
+static ir_node* adopt_operator(void);
+static ir_node* adopt_load(void);
+static ir_node* adopt_const(void);
+static ir_node* adopt_phi(void);
+static ir_node* adopt_existing(void);
+static ir_node* adopt_fcall(void);
 
 // Resolution context
 static prog_t *current_prog = NULL;
@@ -33,7 +33,7 @@ typedef struct sliding_prob_t {
     double end;
 } sliding_prob_t;
 
-typedef ir_node* (*adopt_func_t)();
+typedef ir_node* (*adopt_func_t)(void);
 
 typedef struct resolver_t {
     adopt_func_t func;
@@ -153,7 +153,7 @@ static int is_dominated(ir_node* node, ir_node* dom) {
     return res;
 }
 
-static func_bin_op_t get_random_bin_op() {
+static func_bin_op_t get_random_bin_op(void) {
     int idx = rand() % (sizeof(bin_op_funcs) / sizeof(bin_op_funcs[0]));
     return bin_op_funcs[idx];
 }
@@ -161,7 +161,7 @@ static func_bin_op_t get_random_bin_op() {
 /**
   * Adopt operator as dummy replacement
   **/
-static ir_node *adopt_operator() {
+static ir_node *adopt_operator(void) {
     ir_type *type = current_temp->type;
     ir_mode* mode       = get_irn_mode(current_temp->node);
     ir_node* left_node  = new_Dummy(mode);
@@ -174,7 +174,7 @@ static ir_node *adopt_operator() {
     return op_node;
 }
 
-static ir_node *adopt_conv() {
+static ir_node *adopt_conv(void) {
     ir_type *new_type = NULL;
     do {
         new_type = get_random_prim_type();
@@ -188,7 +188,7 @@ static ir_node *adopt_conv() {
 /**
   * Adopt constant as dummy replacement
   **/
-static ir_node *adopt_const() {
+static ir_node *adopt_const(void) {
     assert(is_Primitive_type(current_temp->type));
     ir_mode *mode = get_type_mode(current_temp->type);
     ir_tarval *tv = mode_is_float(mode) ?
@@ -202,7 +202,7 @@ static ir_node *adopt_const() {
   * Adopts pointer projected from allocation as temporary.
   * Adds no further unresolved tempoaries.
   **/
-static ir_node *adopt_alloc() {
+static ir_node *adopt_alloc(void) {
     // Dertmine type size
     assert(is_Pointer_type(current_temp->type));
     ir_type *pointee_type = get_pointer_points_to_type(current_temp->type);
@@ -225,7 +225,7 @@ static ir_node *adopt_alloc() {
     return alloc_ptr;
 }
 
-static ir_node *adopt_member() {
+static ir_node *adopt_member(void) {
     ir_type *pointee_type = get_pointer_points_to_type(current_temp->type);
     // Find fitting entity
     ir_entity *ent = get_associated_entity(pointee_type);
@@ -249,7 +249,7 @@ static ir_node *adopt_member() {
 /**
   * Adopt loading from memory as dummy replacement
   **/
-static ir_node *adopt_load() {
+static ir_node *adopt_load(void) {
     if (fs_params.cfb.has_memory_ops == false) {
         return NULL;
     }
@@ -284,7 +284,7 @@ static ir_node *get_cf_op(ir_node *n)
 /**
   * Adopt Phi node as dummy replacement
   **/
-static ir_node *adopt_phi() {
+static ir_node *adopt_phi(void) {
     ir_mode *node_mode = get_irn_mode(current_temp->node);
     // We can only put a phi node, if not at starting block
     if (current_cfb->n_predecessors > 0) {
@@ -320,7 +320,7 @@ static ir_node *adopt_phi() {
 /**
   * Adopt existing node as dummy replacement
   **/
-static ir_node *adopt_existing() {
+static ir_node *adopt_existing(void) {
     ir_node **repl = NEW_ARR_F(ir_node*, 0);
     // Iterate over all temporaries and find fitting candidates
     cfb_for_each_temp(current_cfb, temporary) {
@@ -345,7 +345,7 @@ static ir_node *adopt_existing() {
 /**
   * Adopt function call as dummy replacement
   **/
-static ir_node *adopt_fcall() {
+static ir_node *adopt_fcall(void) {
     // Are function calls disabled?
     if (fs_params.cfb.has_func_calls == false) {
         return NULL;
@@ -417,7 +417,7 @@ static ir_node *adopt_fcall() {
   * Return random relation for Cmp node
   * @return Compare relation
   **/
-static ir_relation get_random_relation() {
+static ir_relation get_random_relation(void) {
     return rand() % (ir_relation_greater_equal - ir_relation_false - 1) + 1;
 }
 
@@ -425,7 +425,7 @@ static ir_relation get_random_relation() {
   * Return compare node
   * @return Node to replace dummy
   **/
-static ir_node* adopt_cmp() {
+static ir_node* adopt_cmp(void) {
     assert(is_Primitive_type(current_temp->type));
     assert(get_type_mode(current_temp->type) == mode_b);
     ir_type* type   = get_int_type();
