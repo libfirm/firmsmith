@@ -12,7 +12,7 @@
 
 int nostats = 0;
 
-static void initialize_firmsmith() {
+static void initialize_firmsmith(void) {
 	//gen_firm_init();
 	//firm_option("no-opt");
 	//s et_optimize(0);
@@ -24,7 +24,7 @@ static void initialize_firmsmith() {
 	initialize_resolve();
 }
 
-static void finish_firmsmith() {
+static void finish_firmsmith(void) {
 	finish_resolve();
 	finish_types();
 	ir_finish();
@@ -40,7 +40,7 @@ static void verify_no_dummy(ir_node *node, void *env) {
 	}
 }
 
-static void generate_main_func() {
+static void generate_main_func(void) {
 	ir_type *int_type = new_type_primitive(mode_Is);
 	ir_type *type = new_type_method(0, 1, false, cc_cdecl_set, mtp_no_property);  // create the type
 	set_method_res_type(type, 0, int_type);                                       // set the result type
