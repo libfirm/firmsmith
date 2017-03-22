@@ -1,27 +1,8 @@
-#include <ctype.h>
-#include <errno.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <libfirm/firm.h>
-#include <time.h>
 #include <sys/time.h>
 
-#include <libfirm/firm.h>
-#include <libfirm/adt/array.h>
-#include "driver/firm_opt.h"
-#include "lib/types.h"
-#include "cmdline/parameters.h"
-#include "lib/prog.h"
-#include "lib/statistics.h"
-#include "lib/optimizations.h"
-#include "lib/convert.h"
 #include "lib/resolve.h"
 #include "cmdline/options.h"
 #include "cmdline/help.h"
-#include <assert.h>
-#include "driver/firm_machine.h"
 
 #define LINK_COMMAND          "grep -vE '(\\.type|\\.size)' a.s > a.S && cc -m32 a.S"
 

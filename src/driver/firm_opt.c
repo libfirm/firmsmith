@@ -272,8 +272,6 @@ static void rts_map(ir_graph *irg)
 	ir_lower_intrinsics(irg, rts_intrinsic_map);
 }
 
-static int *irg_dump_no;
-
 typedef enum opt_target {
 	OPT_TARGET_IRG, /**< optimization function works on a single graph */
 	OPT_TARGET_IRP  /**< optimization function works on the complete program */
@@ -632,67 +630,6 @@ static void do_firm_optimizations(void)
 }
 
 /**
- * do Firm lowering
- */
-static void do_firm_lowering(void)
-{
-	int i;
-
-	/* enable architecture dependent optimizations */
-	arch_dep_set_opts((arch_dep_opts_t)
-			((firm_opt.muls ? arch_dep_mul_to_shift : arch_dep_none) |
-			 (firm_opt.divs ? arch_dep_div_by_const : arch_dep_none) |
-			 (firm_opt.mods ? arch_dep_mod_by_const : arch_dep_none) ));
-	for (i = get_irp_n_irgs() - 1; i >= 0; --i) {
-		ir_graph *irg = get_irp_irg(i);
-		do_irg_opt(irg, "reassociation");
-		do_irg_opt(irg, "local");
-	}
-
-	do_irp_opt("target-lowering");
-
-	for (i = get_irp_n_irgs() - 1; i >= 0; --i) {
-		ir_graph *irg = get_irp_irg(i);
-
-		do_irg_opt(irg, "local");
-		do_irg_opt(irg, "deconv");
-		do_irg_opt(irg, "control-flow");
-		do_irg_opt(irg, "opt-load-store");
-		do_irg_opt(irg, "gcse");
-		do_irg_opt(irg, "place");
-		do_irg_opt(irg, "control-flow");
-
-		if (do_irg_opt(irg, "vrp")) {
-			do_irg_opt(irg, "local");
-			do_irg_opt(irg, "control-flow");
-			do_irg_opt(irg, "vrp");
-			do_irg_opt(irg, "local");
-			do_irg_opt(irg, "control-flow");
-		}
-
-		if (do_irg_opt(irg, "if-conversion")) {
-			do_irg_opt(irg, "local");
-			do_irg_opt(irg, "control-flow");
-		}
-
-		add_irg_constraints(irg, IR_GRAPH_CONSTRAINT_NORMALISATION2);
-		do_irg_opt(irg, "local");
-
-		do_irg_opt(irg, "parallelize-mem");
-		do_irg_opt(irg, "frame");
-	}
-	/* hack so we get global initializers constant folded even at -O0 */
-	set_opt_constant_folding(1);
-	set_opt_algebraic_simplification(1);
-	do_irp_opt("local-const");
-	set_opt_constant_folding(firm_opt.const_folding);
-	set_opt_algebraic_simplification(firm_opt.const_folding);
-	do_irp_opt("remove-unused");
-	do_irp_opt("opt-cc");
-	dump_all("low-opt");
-}
-
-/**
  * Initialize for the Firm-generating back end.
  */
 void gen_firm_init(void)
@@ -712,64 +649,6 @@ void gen_firm_init(void)
 	timer_register(t_all_opt, "Firm: all optimizations");
 	t_backend = ir_timer_new();
 	timer_register(t_backend, "Firm: backend");
-}
-
-/**
- * Called, after the Firm generation is completed,
- * do all optimizations and backend call here.
- *
- * @param out                a file handle for the output, may be NULL
- * @param input_filename     the name of the (main) source file
- */
-void generate_code(FILE *out, const char *input_filename)
-{
-	int i;
-
-	/* initialize implicit opts, just to be sure because really the frontend
-	 * should have called it already before starting graph construction */
-	init_implicit_optimizations();
-
-	/* the general for dumping option must be set, or the others will not work*/
-	firm_dump.ir_graph = (bool) (firm_dump.ir_graph | firm_dump.all_phases);
-
-	ir_add_dump_flags(ir_dump_flag_keepalive_edges
-			| ir_dump_flag_consts_local | ir_dump_flag_dominance);
-	ir_remove_dump_flags(ir_dump_flag_loops | ir_dump_flag_ld_names);
-
-	/* FIXME: cloning might ADD new graphs. */
-	irg_dump_no = calloc(get_irp_last_idx(), sizeof(*irg_dump_no));
-
-	ir_timer_init_parent(t_verify);
-	ir_timer_init_parent(t_vcg_dump);
-	timer_start(t_all_opt);
-
-	if (firm_dump.all_types) {
-		dump_ir_prog_ext(dump_typegraph, "types.vcg");
-	}
-
-	dump_all("");
-
-	if (firm_opt.verify) {
-		timer_push(t_verify);
-		tr_verify();
-		timer_pop(t_verify);
-	}
-
-	/* BEWARE: kill unreachable code before doing compound lowering */
-	for (i = get_irp_n_irgs() - 1; i >= 0; --i) {
-		ir_graph *irg = get_irp_irg(i);
-		do_irg_opt(irg, "control-flow");
-	}
-
-	do_firm_optimizations();
-	do_firm_lowering();
-
-	timer_stop(t_all_opt);
-
-	/* run the code generator */
-	timer_start(t_backend);
-	be_main(out, input_filename);
-	timer_stop(t_backend);
 }
 
 void gen_firm_finish(void)
@@ -835,95 +714,4 @@ void firm_option_help(print_option_help_func print_option_help)
 		snprintf(buf2, sizeof(buf2), "%s", firm_options[k].description);
 		print_option_help(buf, buf2);
 	}
-}
-
-int firm_option(const char *const opt)
-{
-	char const* val;
-	if ((val = strstart(opt, "dump-filter="))) {
-		ir_set_dump_filter(val);
-		return 1;
-	} else if ((val = strstart(opt, "clone-threshold="))) {
-		sscanf(val, "%d", &firm_opt.clone_threshold);
-		return 1;
-	} else if ((val = strstart(opt, "inline-max-size="))) {
-		sscanf(val, "%u", &firm_opt.inline_maxsize);
-		return 1;
-	} else if ((val = strstart(opt, "inline-threshold="))) {
-		sscanf(val, "%u", &firm_opt.inline_threshold);
-		return 1;
-	} else if (streq(opt, "no-opt")) {
-		disable_all_opts();
-		return 1;
-	}
-
-	size_t const len = strlen(opt);
-	for (size_t i = ARRAY_SIZE(firm_options); i != 0;) {
-		struct params const* const o = &firm_options[--i];
-		if (len == o->opt_len && memcmp(opt, o->option, len) == 0) {
-			/* statistic options do accumulate */
-			if (o->flag == &firm_dump.statistic)
-				*o->flag = (bool) (*o->flag | o->set);
-			else
-				*o->flag = o->set;
-
-			return 1;
-		}
-	}
-
-	/* maybe this enables/disables optimizations */
-	if (firm_opt_option(opt))
-		return 1;
-
-	return 0;
-}
-
-static void set_be_option(const char *arg)
-{
-	int res = be_parse_arg(arg);
-	(void) res;
-	assert(res);
-}
-
-static void set_option(const char *arg)
-{
-	int res = firm_option(arg);
-	(void) res;
-	assert(res);
-}
-
-void choose_optimization_pack(int level)
-{
-	/* apply optimization level */
-	switch(level) {
-	case 0:
-		set_option("no-opt");
-		break;
-	case 1:
-		set_option("no-inline");
-		break;
-	default:
-	case 4:
-		/* use_builtins = true; */
-		/* fallthrough */
-	case 3:
-		set_option("thread-jumps");
-		set_option("if-conversion");
-		/* fallthrough */
-	case 2:
-		set_option("inline");
-		set_option("occults");
-		set_option("deconv");
-		set_be_option("omitfp");
-		break;
-	}
-}
-
-void init_implicit_optimizations(void)
-{
-	set_optimize(1);
-	set_opt_constant_folding(firm_opt.const_folding);
-	set_opt_algebraic_simplification(firm_opt.const_folding);
-	set_opt_cse(firm_opt.cse);
-	set_opt_global_cse(0);
 }
