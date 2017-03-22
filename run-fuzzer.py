@@ -251,7 +251,7 @@ def get_debugger():
 
 
 def get_debugger_target(debugger):
-    return debugger.CreateTarget('/Users/luxcoder/Documents/uni/firm/repos/cparser/build/debug/cparser')
+    return debugger.CreateTarget(CPARSER_BIN)
 
 
 def get_args_as_string(frame, showFuncName=True):
