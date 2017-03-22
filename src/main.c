@@ -55,9 +55,27 @@ static void verify_no_dummy(ir_node *node, void *env) {
 	}
 }
 
+static void generate_main_func() {
+	ir_type *int_type = new_type_primitive(mode_Is);
+	ir_type *type = new_type_method(0, 1, false, cc_cdecl_set, mtp_no_property);  // create the type
+	set_method_res_type(type, 0, int_type);                                       // set the result type
+	ir_entity *ent = new_entity(get_glob_type(), new_id_from_str("main"), type);
+	ir_graph *fn_main = new_ir_graph(ent, 0);
+	set_current_ir_graph(fn_main);
+
+	// main just returns 0
+	ir_node *node = new_Const(get_mode_null(mode_Is));
+	ir_node *store = get_store();
+	ir_node *results[1] = { node };
+	ir_node *ret = new_Return(store, 1, results);
+	add_immBlock_pred(get_irg_end_block(fn_main), ret);
+	mature_immBlock(get_r_cur_block(fn_main));
+	irg_finalize_cons(fn_main);
+}
+
 static int action_run(const char *argv0) {
 	(void)argv0;
-	// Create ranm function
+	// Create random function
 	prog_t* prog = new_random_prog();
 	// Construct corresponding ir node tree
 	convert_prog(prog);
@@ -66,6 +84,10 @@ static int action_run(const char *argv0) {
 	finalize_convert(prog);
 
 	irg_assert_verify(get_current_ir_graph());
+
+	/* Just to make the linker happy, create 'main' */
+	generate_main_func();
+
 	// Dump ir file
 	char ir_file_name[256];
 	snprintf(ir_file_name, sizeof ir_file_name, "%s.ir", fs_params.prog.strid);

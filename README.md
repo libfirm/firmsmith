@@ -35,16 +35,10 @@ You can simply run it:
 
     ./run-fuzzer.py
 
-However, this will lead to quite unreadable reports,
-because firmsmith never generates a main function,
-which means linking will always fail.
-Still, run-fuzzer correctly detects crashes,
-which look different than a linker error.
-
 Usually, you want to test a single optimization like `-fthread-jumps`.
 In this case, run it like this:
 
-    ./run-fuzzer.py --cparser-options="-fthread-jumps -c"
+    ./run-fuzzer.py --cparser-options="-fthread-jumps"
 
 The fuzzer creates a lot of temporary files.
 For cleanup run:
