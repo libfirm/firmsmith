@@ -2,6 +2,10 @@
 
 from __future__ import print_function
 
+import logging
+logging.basicConfig(level=logging.ERROR)
+LOG = logging.getLogger("fuzzer")
+
 import argparse
 import commands
 import optparse
@@ -43,7 +47,7 @@ show_debug = True
 
 def print_debug(*args, **kwargs):
     if show_debug:
-        print(*args, **kwargs)
+        print(*args, file=sys.stderr, **kwargs)
 
 # Models
 
@@ -428,6 +432,7 @@ def firmsmith_generate_ir_graph(args):
 
     def run_firmsmith():
         try:
+            LOG.info(" ".join(args))
             process = subprocess.Popen(args, stdout=devnull, stderr=subprocess.PIPE)
             (stdoutdata, stderrdata) = process.communicate()
             if process.returncode != None and process.returncode != 0:
@@ -442,6 +447,7 @@ def firmsmith_generate_ir_graph(args):
 
 def get_cparser_optimizations():
     optimizations = [] # ['-O3', '-Os', '-Og']
+    LOG.debug("get cparser optimizations: %s --help-optimization" % CPARSER_BIN)
     output = subprocess.check_output([CPARSER_BIN, '--help-optimization'])
     lines = output.split('\n')
     for line in lines:
@@ -459,6 +465,7 @@ def get_cparser_optimizations():
 
 def get_cparser_version():
     optimizations = []
+    LOG.debug("get cparser version: %s --version" % CPARSER_BIN)
     output = subprocess.check_output([CPARSER_BIN, '--version'])
     return output
 
@@ -538,6 +545,7 @@ def check_ir_graph(debugger, report):
     devnull = open(os.devnull, 'w')
     def run_cparser(args):
         try:
+            LOG.info(" ".join(args))
             process = subprocess.Popen(args, stdout=devnull, stderr=subprocess.PIPE)
             (stdoutdata, stderrdata) = process.communicate()
             if process.returncode != None and process.returncode != 0:
@@ -603,6 +611,7 @@ def fuzz(n):
             report.args = get_firmsmith_args_as_string(args) + ' ' + firmsmith_option
             try:
                 firmsmith_generate_ir_graph(report.args)
+                LOG.info("mv *%s.{vcg,ir} %s" % (report.strid, REPORT_DIR))
                 subprocess.call('bash -c "mv *%s.{vcg,ir} %s"' % (report.strid, REPORT_DIR), shell=True)
 
                 check_ir_graph(debugger, report)
@@ -623,8 +632,10 @@ def fuzz(n):
                         mkdir -p $CATEGORY
                         mv *$STRID* $CATEGORY
                     '""" % (REPORT_DIR, report.strid, identifier)
+                    LOG.info(command)
                     subprocess.call(command, shell=True)
                 else:
+                    LOG.info("rm %s/*%s.{vcg,ir}" % (REPORT_DIR, report.strid))
                     subprocess.call('bash -c "rm %s/*%s.{vcg,ir}"' % (REPORT_DIR, report.strid), shell=True)
 
             except CalledProcessError, TimeoutError:
@@ -654,13 +665,14 @@ if __name__ == '__main__':
     parser.add_argument('--firmsmith-options',
         action='append', help='firmsmith options for graph generation')
     
-    print(sys.argv)
+    LOG.debug(sys.argv)
     fuzzer_options = vars(parser.parse_args(sys.argv[1:]))
     if fuzzer_options['cparser_options'] == None:
         fuzzer_options['cparser_options'] = default_cparser_options
     if fuzzer_options['firmsmith_options'] == None:
         fuzzer_options['firmsmith_options'] = default_firmsmith_options
-    print(fuzzer_options['firmsmith_options'])
+    LOG.debug(fuzzer_options['firmsmith_options'])
+    LOG.debug(fuzzer_options['cparser_options'])
     now = datetime.now()
     fuzz(1000)
 
