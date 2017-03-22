@@ -17,6 +17,9 @@ static void initialize_firmsmith(void) {
 	//firm_option("no-opt");
 	//s et_optimize(0);
 	ir_init();
+	ir_machine_triple_t* triple = ir_parse_machine_triple("x86_64-linux-gnu");
+	ir_target_set_triple(triple);
+	ir_target_init();
 	set_optimize(0);
 	//machine_triple_t *machine = firm_get_host_machine();
 	//setup_firm_for_machine(machine);

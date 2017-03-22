@@ -540,7 +540,7 @@ def debug_abort(debugger, args):
 
 
 def check_ir_graph(debugger, report):
-    args = [CPARSER_BIN, '%s/%s.ir' % (REPORT_DIR, report.strid), '-O0', '-m32']
+    args = [CPARSER_BIN, '%s/%s.ir' % (REPORT_DIR, report.strid), '-O0', '--target=x86_64-linux-gnu']
 
     devnull = open(os.devnull, 'w')
     def run_cparser(args):
