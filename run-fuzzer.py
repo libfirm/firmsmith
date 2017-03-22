@@ -94,7 +94,7 @@ class DebugRecord:
         if self.returncode != None:
             result += "#### cparser aborted with exit code %d\n\n" % self.returncode
             if self.stderrdata:
-                print(self.stderrdata)
+                LOG.info(self.stderrdata)
                 result += "cparser produced the following data on stderr\n\n"
                 result += "\t%s\n\n" % self.stderrdata.replace('\n', '\n\t')
         elif self.timeout:
@@ -383,12 +383,12 @@ def yield_process_events(debugger, process, n_stops = 0):
                 elif state == lldb.eStateLaunching:
                     pass
                 else:
-                    pass
-                    #print(state)
-                    #raise LLDBUnexpectState("Unexpect lldb process event")
+                    LOG.info("lldb event state = "+str(state))
         else:
+            LOG.debug("timeout!")
             timeout = True
             process.Stop()
+            break
 
     process.Kill()
 
@@ -577,14 +577,13 @@ def check_ir_graph(debugger, report):
                 record.stderrdata = e.stderrdata.strip()
                 report.aborts.append(record)
             except NoCrashException:
-                print("NoCrashException")
-                print("\tFirmsmith arguments: ", report.args)
-                print("\tCparser arguments:   ", " ".join(record.args))
-                pass
+                LOG.warning("NoCrashException")
+                LOG.warning("\tFirmsmith arguments: ", report.args)
+                LOG.warning("\tCparser arguments:   ", " ".join(record.args))
         finally:
             report.records.append(record)
-        return False 
-    
+        return False
+
     def populate_opts(opts):
         result = []
         for opt in opts:
@@ -592,7 +591,7 @@ def check_ir_graph(debugger, report):
             opt = opt.replace('<value>', str(random.randint(1, 10)))
             result.append(opt)
         return result
-    
+
     global fuzzer_options
     for opts in fuzzer_options["cparser_options"]:
         check_opts(populate_opts(opts.split()))
@@ -620,7 +619,7 @@ def fuzz(n):
                     filename = REPORT_DIR + '/' + report.strid + '.txt'
                     with open(filename, 'w') as report_file:
                         report_file.write(str(report).replace('bugreports', 'bugreports/' + identifier))
-                        print("Report was written to %s (%d timeouts, %d aborts, %d successes)"  % \
+                        print("\nReport was written to %s (%d timeouts, %d aborts, %d successes)"  % \
                             (filename.replace('reports/','reports/'+identifier+'/'), len(report.timeouts), len(report.aborts), len(report.successes)))
                     command = """bash -c '
                         REPORT_DIR=%s;
@@ -639,7 +638,7 @@ def fuzz(n):
                     subprocess.call('bash -c "rm %s/*%s.{vcg,ir}"' % (REPORT_DIR, report.strid), shell=True)
 
             except CalledProcessError, TimeoutError:
-                print("Could not generate ir graph with arguments %s" % \
+                LOG.error("Could not generate ir graph with arguments %s" % \
                     report.args)
 
 
