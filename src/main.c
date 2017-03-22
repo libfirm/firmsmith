@@ -1,6 +1,10 @@
 #include <sys/time.h>
+#include <time.h>
 
+#include "libfirm/firm.h"
 #include "lib/resolve.h"
+#include "lib/types.h"
+#include "lib/convert.h"
 #include "cmdline/options.h"
 #include "cmdline/help.h"
 
