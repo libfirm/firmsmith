@@ -11,7 +11,7 @@ builddir ?= $(top_builddir)/$(variant)
 
 include config.default.mak
 
-CC = llvm-gcc
+CC ?= cc
 AR ?= ar
 DLLEXT ?= .so
 LINK ?= $(CC)

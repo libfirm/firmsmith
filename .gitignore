@@ -17,6 +17,5 @@ a.s
 *.out
 *.vcg
 *.ir
-*.md
 bugreports/*
 !bugreports/.gitkeep
