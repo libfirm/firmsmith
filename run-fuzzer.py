@@ -554,7 +554,7 @@ def check_ir_graph(debugger, report):
             process.kill()
             raise e
 
-    print_debug("_", end="")
+    print_debug("\n_", end="")
 
     def check_opts(opts):
         record = DebugRecord()
