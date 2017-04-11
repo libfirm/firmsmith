@@ -632,6 +632,13 @@ static void resolve_mem_graph_walker_post(cfb_t *cfb) {
     if (cfb->last_mem == NULL) return;
     set_cur_block(cfb->irb);
     ir_node *store = get_store();
+    if (is_Phi(store)) {
+      /* Documentation on website (Endless Loops) says that we must keep-alive
+       * potentially endless loop twice: The PhiM and the block.
+       * A PhiM is kept alive implicitly by construction, but the block must
+       * be handled by the frontend. */
+      keep_alive(cfb->irb);
+    }
     exchange(cfb->mem, store);
     set_store(cfb->last_mem);
     cfb->last_mem = NULL;
