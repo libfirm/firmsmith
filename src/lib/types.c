@@ -188,9 +188,6 @@ void initialize_types(void) {
             create_struct_type();
         }
     }
-    for (size_t i = 0; i < ARR_LEN(compound_types); ++i) {
-        print_type(compound_types[i]);
-    }
 }
 
 
