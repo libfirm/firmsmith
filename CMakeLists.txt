@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.5)
 project(firmsmith)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CFLAGS "${CMAKE_CFLAGS} -pg")
 
 set(SOURCE_FILES
     build/debug/revision.h
