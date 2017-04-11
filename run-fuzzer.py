@@ -659,7 +659,7 @@ if __name__ == '__main__':
     ]
     # Setup parser
     parser = argparse.ArgumentParser(description = 'FirmSmith Fuzzer')
-    parser.add_argument('count', nargs='?', default=3,
+    parser.add_argument('count', nargs='?', default=3, type=int,
         help='number of iterations (multiply by cparser and firmsmith option variants)')
     parser.add_argument('--cparser-options',
         action='append', help='cparser options to apply on generated graphs')
